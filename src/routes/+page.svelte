@@ -25,6 +25,7 @@
   let clickedHighlightLoc: [number, number, number, number] | null = $state(null);
   let hoverHighlightLoc: [number, number, number, number] | null = $state(null);
   let highlightLoc: [number, number, number, number] | null = $derived(hoverHighlightLoc ?? clickedHighlightLoc);
+  let scrollToHighlight = $derived(hoverHighlightLoc === null);
   let errors: CompilerError[] = $state([]);
   let isCompiling = $state(false);
   let consoleOutput: InterpreterOutput[] = $state([]);
@@ -305,7 +306,7 @@
       {#if mobileView === 'editor'}
         <div class="panel editor-panel">
           {#if wasmState === 'ready'}
-            <Editor bind:source {highlightLoc} {errors} />
+            <Editor bind:source {highlightLoc} {scrollToHighlight} {errors} />
           {:else}
             <div class="skeleton-editor">
               <div class="skeleton" style="width: 60%; height: 14px; margin: 12px 16px"></div>
@@ -370,7 +371,7 @@
     <div class="desktop-content">
       <div class="panel editor-panel" style="width: {splitPercent}%">
         {#if wasmState === 'ready'}
-          <Editor bind:source {highlightLoc} {errors} />
+          <Editor bind:source {highlightLoc} {scrollToHighlight} {errors} />
         {:else if wasmState === 'loading'}
           <div class="skeleton-editor">
             <div class="skeleton" style="width: 60%; height: 14px; margin: 12px 16px"></div>

@@ -27,10 +27,12 @@
   let {
     source = $bindable(''),
     highlightLoc,
+    scrollToHighlight = false,
     errors
   }: {
     source: string;
     highlightLoc: [number, number, number, number] | null;
+    scrollToHighlight?: boolean;
     errors: CompilerError[];
   } = $props();
 
@@ -149,11 +151,15 @@
       }
       // Only dispatch if we have a valid range
       if (from < to) {
-        view.dispatch({
-          effects: setHighlight.of({ from, to }),
-          selection: { anchor: from },
-          scrollIntoView: true
-        });
+        const spec: Parameters<typeof view.dispatch>[0] = {
+          effects: setHighlight.of({ from, to })
+        };
+        // Only scroll and move cursor for explicit clicks, not hover
+        if (scrollToHighlight) {
+          spec.selection = { anchor: from };
+          spec.scrollIntoView = true;
+        }
+        view.dispatch(spec);
       } else {
         view.dispatch({ effects: setHighlight.of(null) });
       }
