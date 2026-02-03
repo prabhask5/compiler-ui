@@ -7,7 +7,10 @@ const config = {
 	kit: {
 		adapter: adapter({
 			fallback: 'index.html'
-		})
+		}),
+		version: {
+			pollInterval: 60000
+		}
 	}
 };
 
