@@ -10,14 +10,13 @@
     onNodeClick
   }: {
     result: CompileResult | null;
-    activeTab: 'ast' | 'typed' | 'run' | 'docs';
-    onTabChange: (tab: 'ast' | 'typed' | 'run' | 'docs') => void;
+    activeTab: 'ast' | 'run' | 'docs';
+    onTabChange: (tab: 'ast' | 'run' | 'docs') => void;
     onNodeClick: (loc: [number, number, number, number]) => void;
   } = $props();
 
   const tabs = [
     { id: 'ast' as const, label: 'AST' },
-    { id: 'typed' as const, label: 'Typed AST' },
     { id: 'run' as const, label: 'Run' },
     { id: 'docs' as const, label: 'Docs' }
   ];
@@ -37,17 +36,9 @@
       {#if activeTab === 'ast'}
         <div class="content-pane fade-in">
           {#if result}
-            <ASTTree ast={result.untypedAst} typed={false} {onNodeClick} />
+            <ASTTree ast={result.typedAst} {onNodeClick} />
           {:else}
             <div class="empty-state">Compile to see the AST</div>
-          {/if}
-        </div>
-      {:else if activeTab === 'typed'}
-        <div class="content-pane fade-in">
-          {#if result}
-            <ASTTree ast={result.typedAst} typed={true} {onNodeClick} />
-          {:else}
-            <div class="empty-state">Compile to see the Typed AST</div>
           {/if}
         </div>
       {:else if activeTab === 'docs'}

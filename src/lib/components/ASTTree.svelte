@@ -4,11 +4,9 @@
 
   let {
     ast,
-    typed,
     onNodeClick
   }: {
     ast: Program;
-    typed: boolean;
     onNodeClick: (loc: [number, number, number, number]) => void;
   } = $props();
 
@@ -26,7 +24,7 @@
     </button>
   </div>
   <div class="tree-content">
-    <ASTNode node={ast} key="Program" depth={0} {typed} {onNodeClick} forceExpand={expandAll} />
+    <ASTNode node={ast} key="Program" depth={0} {onNodeClick} forceExpand={expandAll} />
   </div>
 </div>
 

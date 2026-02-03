@@ -46,7 +46,7 @@
           <path d="M18 8 L14 24" fill="none" stroke="#a78bfa" stroke-width="2" stroke-linecap="round" opacity="0.7"/>
         </svg>
       </span>
-      <span class="logo-text">Compiler UI</span>
+      <span class="logo-text">Typed Python Compiler UI</span>
     </h1>
 
     <div class="divider-v"></div>
@@ -80,7 +80,22 @@
   </div>
 
   <div class="toolbar-right">
-    <button class="btn btn-ghost share-btn" onclick={onShare}> Share </button>
+    <a
+      class="btn btn-ghost github-btn"
+      href="https://github.com/prabhask5/compiler-ui"
+      target="_blank"
+      rel="noopener"
+      aria-label="View source on GitHub"
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="18" height="18" fill="currentColor">
+        <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+      </svg>
+    </a>
+
+    <div class="tooltip-wrapper share-btn">
+      <button class="btn btn-ghost" onclick={onShare}> Share </button>
+      <span class="tooltip-text">Compresses your code into a shareable URL. Anyone with the link sees your code, compilation result, and program output.</span>
+    </div>
 
     <button
       class="btn btn-compile"
@@ -278,6 +293,50 @@
     font-size: 11px;
     color: var(--text-muted);
     margin-top: 1px;
+  }
+
+  /* GitHub button */
+  .github-btn {
+    padding: 6px;
+    color: var(--text-secondary);
+    text-decoration: none;
+  }
+
+  .github-btn:hover {
+    background: var(--bg-hover);
+    color: var(--text);
+  }
+
+  /* Share tooltip */
+  .tooltip-wrapper {
+    position: relative;
+  }
+
+  .tooltip-text {
+    visibility: hidden;
+    opacity: 0;
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    width: 260px;
+    padding: var(--space-sm) var(--space-md);
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-lg);
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--text-secondary);
+    z-index: 200;
+    pointer-events: none;
+    transition:
+      opacity var(--duration-fast) var(--ease),
+      visibility var(--duration-fast) var(--ease);
+  }
+
+  .tooltip-wrapper:hover .tooltip-text {
+    visibility: visible;
+    opacity: 1;
   }
 
   @media (max-width: 767px) {

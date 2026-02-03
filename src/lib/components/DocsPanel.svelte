@@ -19,12 +19,35 @@
 
     <section class="docs-section">
       <h2>Compiler Architecture</h2>
-      <p>The underlying compiler is written in Rust and consists of:</p>
+      <p>The underlying compiler is written in <strong>Rust</strong> and consists of four stages:</p>
       <ul>
-        <li><strong>Lexer</strong> — Hand-written tokenizer with indentation tracking</li>
-        <li><strong>Parser</strong> — Recursive descent with 2-token lookahead to distinguish declarations from statements</li>
-        <li><strong>Type Checker</strong> — Produces a fully typed AST with inferred types on every expression</li>
-        <li><strong>Code Generator</strong> — Emits x86-64 assembly with mark-and-sweep garbage collection (native only)</li>
+        <li><strong>Lexer</strong> — Hand-written tokenizer with indentation tracking, implemented as an async pipe model (stable Rust has no generators)</li>
+        <li><strong>Parser</strong> — Recursive descent with 2-token lookahead. Left recursion rewritten into loops; expression parsing uses precedence levels (<code>parse_exprN</code>) to manage operator hierarchy</li>
+        <li><strong>Type Checker</strong> — Produces a fully typed AST with inferred types on every expression. Non-fatal errors are collected and reported with source locations. AST nodes use idiomatic Rust <code>struct</code>s and <code>enum</code>s with pattern matching</li>
+        <li><strong>Code Generator</strong> — Emits x86-64 assembly with mark-and-sweep garbage collection, cross-platform object file output (Windows, Linux, Mac)</li>
+      </ul>
+    </section>
+
+    <section class="docs-section">
+      <h2>Code Generation</h2>
+      <p>The compiler targets x86-64 (not RISC-V). Key design details:</p>
+      <ul>
+        <li><strong>Symbol naming</strong> — <code>$chocopy_main</code> for entry, <code>ClassName.MethodName</code> for methods, <code>ClassName.$proto</code> for prototypes, <code>$</code>-prefixed for stdlib</li>
+        <li><strong>Object representation</strong> — Objects are 64-bit pointers; <code>0</code> is <code>None</code>. Each object has a 24-byte header (prototype pointer + 16 bytes for GC metadata)</li>
+        <li><strong>Unboxed values</strong> — <code>int</code> (4 bytes) and <code>bool</code> (1 byte) stored in 8-byte stack slots; packed layout in globals and object fields</li>
+        <li><strong>Prototypes</strong> — Every type has a global <code>C.$proto</code> with size, type tag, GC reference bitmap, and method table</li>
+        <li><strong>Calling convention</strong> — Arguments pushed right-to-left, nested functions receive static link in <code>R10</code>, return values in <code>RAX</code>, stack aligned to 8 mod 16</li>
+      </ul>
+    </section>
+
+    <section class="docs-section">
+      <h2>Garbage Collection</h2>
+      <p>The compiler implements <strong>mark-and-sweep GC</strong>, triggered by <code>$alloc</code> when total heap size reaches a threshold:</p>
+      <ul>
+        <li><strong>Heap tracking</strong> — All dynamically allocated objects are linked via <code>$gc_next</code> into a linked list for easy traversal</li>
+        <li><strong>Mark phase</strong> — Walks global references, local references (via stack frame maps), and object member references (via prototype reference bitmaps) to set <code>$gc_is_marked</code> on reachable objects</li>
+        <li><strong>Root discovery</strong> — GC walks the full call stack using reference maps attached after function calls (via <code>PREFETCHNTA</code>) to find all active local references</li>
+        <li><strong>Sweep phase</strong> — Walks the heap linked list, frees unmarked objects, and resets <code>$gc_is_marked</code> on live objects</li>
       </ul>
     </section>
 
@@ -32,8 +55,9 @@
       <h2>Browser Playground</h2>
       <p>This UI runs the compiler entirely in the browser:</p>
       <ul>
-        <li>The Rust compiler is compiled to <strong>WebAssembly</strong> via <code>wasm-pack</code></li>
-        <li>Parsing and type checking happen in WASM — producing both untyped and typed ASTs</li>
+        <li>The Rust compiler is compiled to <strong>WebAssembly</strong> via <code>wasm-pack</code> with native-only dependencies feature-gated out — output is a ~155KB WASM binary</li>
+        <li>WASM is loaded at runtime via a Blob URL strategy to avoid Vite/Rollup import resolution issues</li>
+        <li>Parsing and type checking happen in WASM — producing a fully typed AST as JSON</li>
         <li>Program execution uses a <strong>TypeScript tree-walking interpreter</strong> that traverses the typed AST directly</li>
         <li>No server required — everything runs client-side</li>
       </ul>
@@ -61,7 +85,7 @@
           <span>Compile + Run</span>
         </div>
         <div class="shortcut-row">
-          <kbd>Cmd/Ctrl + 1/2/3/4</kbd>
+          <kbd>Cmd/Ctrl + 1/2/3</kbd>
           <span>Switch output tabs</span>
         </div>
       </div>
@@ -70,8 +94,7 @@
     <section class="docs-section">
       <h2>Links</h2>
       <ul>
-        <li><a href="https://github.com/prabhask5/typed-python-compiler" target="_blank" rel="noopener">typed-python-compiler</a> — Rust compiler source</li>
-        <li><a href="https://github.com/prabhask5/compiler-ui" target="_blank" rel="noopener">compiler-ui</a> — This playground's source</li>
+        <li><a href="https://github.com/prabhask5/compiler-ui" target="_blank" rel="noopener">compiler-ui</a> — Source code</li>
         <li><a href="https://compiler.prabhas.io" target="_blank" rel="noopener">compiler.prabhas.io</a> — Live site</li>
       </ul>
     </section>

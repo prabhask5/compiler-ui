@@ -16,7 +16,7 @@
   let wasmState: WasmState = $state('idle');
   let source = $state(examples[0].code);
   let result: CompileResult | null = $state(null);
-  let activeTab: 'ast' | 'typed' | 'run' | 'docs' = $state('ast');
+  let activeTab: 'ast' | 'run' | 'docs' = $state('ast');
   let splitPercent = $state(50);
   let highlightLoc: [number, number, number, number] | null = $state(null);
   let errors: CompilerError[] = $state([]);
@@ -61,9 +61,9 @@
       if (mod && e.key === 'e') {
         e.preventDefault();
       }
-      if (mod && e.key >= '1' && e.key <= '4') {
+      if (mod && e.key >= '1' && e.key <= '3') {
         e.preventDefault();
-        const tabs: (typeof activeTab)[] = ['ast', 'typed', 'run', 'docs'];
+        const tabs: (typeof activeTab)[] = ['ast', 'run', 'docs'];
         activeTab = tabs[parseInt(e.key) - 1];
       }
     }
@@ -173,7 +173,7 @@
     const url = `${window.location.origin}${window.location.pathname}#${compressed}`;
     navigator.clipboard.writeText(url).then(() => {
       // Brief feedback
-      const btn = document.querySelector('.share-btn');
+      const btn = document.querySelector('.share-btn .btn');
       if (btn) {
         btn.textContent = 'Copied!';
         setTimeout(() => (btn.textContent = 'Share'), 1500);

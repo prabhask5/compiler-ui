@@ -2,8 +2,8 @@
 
 ## GitHub Repository Description
 
-Browser-based playground for a Typed Python (ChocoPy) compiler — write, compile, and run programs entirely in the browser using WebAssembly.
+Typed Python (ChocoPy) compiler written in Rust with a browser-based playground — hand-written lexer/parser, type checker, x86-64 code generator with mark-and-sweep GC, compiled to WebAssembly. Try it live at compiler.prabhas.io
 
 ## Topics / Tags
 
-typed-python, chocopy, compiler, playground, webassembly, wasm, svelte, sveltekit, rust, ast-visualization, interpreter, browser-ide
+typed-python, chocopy, compiler, rust, x86-64, code-generation, garbage-collection, type-checker, parser, webassembly, wasm, svelte, sveltekit, ast-visualization, interpreter, browser-ide, playground

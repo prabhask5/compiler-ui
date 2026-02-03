@@ -328,7 +328,6 @@ export interface Program {
 // ── Compile Result ──
 
 export interface CompileResult {
-  untypedAst: Program;
   typedAst: Program;
   errors: CompilerError[];
   hasErrors: boolean;

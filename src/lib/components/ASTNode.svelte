@@ -7,14 +7,12 @@
     node,
     key,
     depth,
-    typed,
     onNodeClick,
     forceExpand
   }: {
     node: unknown;
     key: string;
     depth: number;
-    typed: boolean;
     onNodeClick: (loc: [number, number, number, number]) => void;
     forceExpand: boolean;
   } = $props();
@@ -39,7 +37,7 @@
   const hasChildren = $derived(children.length > 0);
   const location = $derived(obj?.location as [number, number, number, number] | undefined);
   const inferredType = $derived(
-    typed && obj?.inferredType
+    obj?.inferredType
       ? formatValueType(obj.inferredType as import('$lib/compiler/types').ValueType)
       : ''
   );
@@ -103,7 +101,6 @@
                     node={item}
                     key={String(j)}
                     depth={depth + 1}
-                    {typed}
                     {onNodeClick}
                     {forceExpand}
                   />
@@ -114,7 +111,6 @@
                 node={child.value}
                 key={child.key}
                 depth={depth + 1}
-                {typed}
                 {onNodeClick}
                 {forceExpand}
               />

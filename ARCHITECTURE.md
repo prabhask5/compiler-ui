@@ -2,15 +2,15 @@
 
 ## Overview
 
-Compiler UI runs a Rust Typed Python compiler in the browser via WebAssembly. Programs are compiled (parsed + type-checked) by the WASM module, then executed by a TypeScript tree-walking interpreter.
+Typed Python Compiler UI runs a Rust Typed Python compiler in the browser via WebAssembly. Programs are compiled (parsed + type-checked) by the WASM module, then executed by a TypeScript tree-walking interpreter.
 
 ```
-┌─────────────┐    source     ┌─────────────────┐    JSON AST    ┌───────────────┐
+┌─────────────┐    source     ┌─────────────────┐    typed AST   ┌───────────────┐
 │  CodeMirror  │ ──────────── │   WASM Module    │ ────────────── │  AST Tree UI  │
 │   Editor     │              │  (Rust→WASM)     │                │  Visualization │
-└─────────────┘              │  parse()         │                └───────────────┘
-                              │  typecheck()     │
-                              │  compile()       │    typed AST   ┌───────────────┐
+└─────────────┘              │  compile()       │                └───────────────┘
+                              │  (parse +        │
+                              │   typecheck)     │    typed AST   ┌───────────────┐
                               └─────────────────┘ ────────────── │  Interpreter   │
                                                                   │  (TypeScript)  │
                                                                   └───────────────┘
@@ -20,7 +20,7 @@ Compiler UI runs a Rust Typed Python compiler in the browser via WebAssembly. Pr
 
 ### Compiler Modifications
 
-The Rust compiler (`typed-python-compiler/chocopy/`) was modified minimally:
+The Rust compiler source is bundled in the `wasm/` directory. It was modified minimally for WASM compatibility:
 
 1. **Cargo.toml**: Added `[lib]` section and feature-gated native-only dependencies (`getopts`, `cc`, `object`, `gimli`, `rand`) behind a `native` feature flag.
 
@@ -32,12 +32,12 @@ The Rust compiler (`typed-python-compiler/chocopy/`) was modified minimally:
 
 ### WASM Wrapper Crate
 
-Located at `compiler-ui/wasm/`, this is a thin wrapper using `wasm-bindgen`:
+Located at `wasm/`, this is a thin wrapper using `wasm-bindgen`:
 
 - Uses the Typed Python crate with `default-features = false` (no native deps)
 - Exports three functions: `parse()`, `typecheck()`, `compile()`
 - Each returns JSON strings of the AST
-- `compile()` returns both untyped and typed ASTs plus error list
+- `compile()` returns the typed AST plus error list (the untyped AST is also returned by the WASM module but not used by the UI)
 - Built with `wasm-pack build --target web --release`
 - Output: ~155KB WASM binary
 
@@ -63,7 +63,7 @@ The Rust AST types use serde for JSON serialization. Key mappings:
 | `Location` | `[startRow, startCol, endRow, endCol]` | `LocationArray` |
 | `ValueType::ClassValueType` | `{ kind: "ClassValueType", className }` | `ClassValueType` |
 
-The `inferredType` field is present only on typed AST nodes (after type checking). The untyped AST omits it via `#[serde(skip_serializing_if = "Option::is_none")]`.
+The `inferredType` field is present on typed AST nodes (after type checking) and is displayed as a type badge in the AST visualization. It is omitted from the JSON when absent via `#[serde(skip_serializing_if = "Option::is_none")]`.
 
 ## Interpreter Design
 
@@ -118,7 +118,7 @@ CSS custom properties define the entire visual language:
     ├── Divider (resizable split handle)
     ├── OutputPanel (tab container)
     │   ├── ASTTree → ASTNode (recursive tree)
-    │   ├── AssemblyView (placeholder)
+    │   ├── DocsPanel (documentation)
     │   └── Console (execution output)
     └── ErrorPanel (error list)
 ```
