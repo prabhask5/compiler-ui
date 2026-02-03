@@ -113,6 +113,7 @@
 
     <button
       class="btn btn-run"
+      class:running={isRunning}
       disabled={wasmState !== 'ready' || isRunning || hasErrors}
       onclick={onRun}
     >
@@ -204,6 +205,8 @@
   .btn-compile {
     background: var(--accent);
     color: white;
+    min-width: 90px;
+    justify-content: center;
   }
 
   .btn-compile:hover:not(:disabled) {
@@ -215,9 +218,23 @@
     box-shadow: 0 0 20px var(--accent-glow-strong);
   }
 
+  @media (prefers-reduced-motion: no-preference) {
+    .btn-compile.compiling,
+    .btn-run.running {
+      animation: btnPulse 1.2s ease-in-out infinite;
+    }
+  }
+
+  @keyframes btnPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.8; }
+  }
+
   .btn-run {
     background: var(--bg-hover);
     color: var(--text);
+    min-width: 60px;
+    justify-content: center;
   }
 
   .btn-run:hover:not(:disabled) {

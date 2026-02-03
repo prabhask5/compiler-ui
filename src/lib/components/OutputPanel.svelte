@@ -1,23 +1,42 @@
 <script lang="ts">
-  import type { CompileResult } from '$lib/compiler/types';
+  import type { CompileResult, Program } from '$lib/compiler/types';
+  import type { DeclarationMap, TypeProvenanceInfo } from '$lib/utils/declarations';
+  import type { Snapshot, SnapshotResult } from '$lib/interpreter/snapshot';
+  import type { VariableLifetime } from '$lib/utils/lifetimes';
   import ASTTree from './ASTTree.svelte';
   import DocsPanel from './DocsPanel.svelte';
+  import TimelinePanel from './TimelinePanel.svelte';
 
   let {
     result,
     activeTab,
     onTabChange,
-    onNodeClick
+    onNodeClick,
+    declarationMap = undefined,
+    onTypeBadgeHover = undefined,
+    snapshots = [],
+    snapshotCompleted = false,
+    untypedAst = undefined,
+    lifetimes = [],
+    onTimelineStep = undefined
   }: {
     result: CompileResult | null;
-    activeTab: 'ast' | 'run' | 'docs';
-    onTabChange: (tab: 'ast' | 'run' | 'docs') => void;
+    activeTab: 'ast' | 'run' | 'timeline' | 'docs';
+    onTabChange: (tab: 'ast' | 'run' | 'timeline' | 'docs') => void;
     onNodeClick: (loc: [number, number, number, number]) => void;
+    declarationMap?: DeclarationMap;
+    onTypeBadgeHover?: ((info: TypeProvenanceInfo | null) => void) | undefined;
+    snapshots?: Snapshot[];
+    snapshotCompleted?: boolean;
+    untypedAst?: Program;
+    lifetimes?: VariableLifetime[];
+    onTimelineStep?: ((step: number, location?: [number, number, number, number]) => void) | undefined;
   } = $props();
 
   const tabs = [
     { id: 'ast' as const, label: 'AST' },
     { id: 'run' as const, label: 'Run' },
+    { id: 'timeline' as const, label: 'Timeline' },
     { id: 'docs' as const, label: 'Docs' }
   ];
 </script>
@@ -36,10 +55,29 @@
       {#if activeTab === 'ast'}
         <div class="content-pane fade-in">
           {#if result}
-            <ASTTree ast={result.typedAst} {onNodeClick} />
+            <ASTTree
+              ast={result.typedAst}
+              {onNodeClick}
+              {declarationMap}
+              {onTypeBadgeHover}
+            />
           {:else}
             <div class="empty-state">Compile to see the AST</div>
           {/if}
+        </div>
+      {:else if activeTab === 'timeline'}
+        <div class="content-pane fade-in">
+          <TimelinePanel
+            {snapshots}
+            {untypedAst}
+            typedAst={result?.typedAst}
+            {lifetimes}
+            {snapshotCompleted}
+            {onNodeClick}
+            {declarationMap}
+            {onTypeBadgeHover}
+            {onTimelineStep}
+          />
         </div>
       {:else if activeTab === 'docs'}
         <div class="content-pane fade-in">

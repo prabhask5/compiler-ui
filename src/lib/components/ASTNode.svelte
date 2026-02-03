@@ -1,6 +1,8 @@
 <script lang="ts">
   import { getNodeCategory, getCategoryColor, formatValueType } from '$lib/compiler/types';
   import { getNodeSummary, getNodeChildren } from '$lib/utils/format';
+  import type { DeclarationMap, TypeProvenanceInfo } from '$lib/utils/declarations';
+  import { getTypeProvenance } from '$lib/utils/declarations';
   import ASTNode from './ASTNode.svelte';
 
   let {
@@ -8,13 +10,19 @@
     key,
     depth,
     onNodeClick,
-    forceExpand
+    forceExpand,
+    showTypeBadges = true,
+    declarationMap = undefined,
+    onTypeBadgeHover = undefined
   }: {
     node: unknown;
     key: string;
     depth: number;
     onNodeClick: (loc: [number, number, number, number]) => void;
     forceExpand: boolean;
+    showTypeBadges?: boolean;
+    declarationMap?: DeclarationMap;
+    onTypeBadgeHover?: ((info: TypeProvenanceInfo | null) => void) | undefined;
   } = $props();
 
   let expanded = $state(false);
@@ -51,6 +59,16 @@
       onNodeClick(location);
     }
   }
+
+  function handleBadgeEnter() {
+    if (!onTypeBadgeHover || !declarationMap) return;
+    const info = getTypeProvenance(obj, declarationMap);
+    if (info) onTypeBadgeHover(info);
+  }
+
+  function handleBadgeLeave() {
+    if (onTypeBadgeHover) onTypeBadgeHover(null);
+  }
 </script>
 
 {#if obj && typeof obj === 'object'}
@@ -81,7 +99,13 @@
           <span class="node-summary">{summary}</span>
         {/if}
         {#if inferredType}
-          <span class="type-badge">{inferredType}</span>
+          <!-- svelte-ignore a11y_no_static_element_interactions -->
+          <span
+            class="type-badge"
+            class:hidden={!showTypeBadges}
+            onmouseenter={handleBadgeEnter}
+            onmouseleave={handleBadgeLeave}
+          >{inferredType}</span>
         {/if}
       </button>
     </div>
@@ -103,6 +127,9 @@
                     depth={depth + 1}
                     {onNodeClick}
                     {forceExpand}
+                    {showTypeBadges}
+                    {declarationMap}
+                    {onTypeBadgeHover}
                   />
                 {/each}
               </div>
@@ -113,6 +140,9 @@
                 depth={depth + 1}
                 {onNodeClick}
                 {forceExpand}
+                {showTypeBadges}
+                {declarationMap}
+                {onTypeBadgeHover}
               />
             {:else}
               <div class="leaf-value">
@@ -212,6 +242,14 @@
     border-radius: 3px;
     font-weight: 500;
     white-space: nowrap;
+    transition: opacity 300ms var(--ease), transform 300ms var(--ease);
+    transform-origin: left center;
+  }
+
+  .type-badge.hidden {
+    opacity: 0;
+    transform: scale(0.8);
+    pointer-events: none;
   }
 
   .node-children {

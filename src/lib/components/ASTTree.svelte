@@ -1,13 +1,20 @@
 <script lang="ts">
   import type { Program } from '$lib/compiler/types';
+  import type { DeclarationMap, TypeProvenanceInfo } from '$lib/utils/declarations';
   import ASTNode from './ASTNode.svelte';
 
   let {
     ast,
-    onNodeClick
+    onNodeClick,
+    showTypeBadges = true,
+    declarationMap = undefined,
+    onTypeBadgeHover = undefined
   }: {
     ast: Program;
     onNodeClick: (loc: [number, number, number, number]) => void;
+    showTypeBadges?: boolean;
+    declarationMap?: DeclarationMap;
+    onTypeBadgeHover?: ((info: TypeProvenanceInfo | null) => void) | undefined;
   } = $props();
 
   let expandAll = $state(true);
@@ -24,7 +31,16 @@
     </button>
   </div>
   <div class="tree-content">
-    <ASTNode node={ast} key="Program" depth={0} {onNodeClick} forceExpand={expandAll} />
+    <ASTNode
+      node={ast}
+      key="Program"
+      depth={0}
+      {onNodeClick}
+      forceExpand={expandAll}
+      {showTypeBadges}
+      {declarationMap}
+      {onTypeBadgeHover}
+    />
   </div>
 </div>
 

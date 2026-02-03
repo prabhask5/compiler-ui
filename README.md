@@ -4,9 +4,30 @@ Try it here: **[compiler.prabhas.io](https://compiler.prabhas.io)**
 
 > ChocoPy is a programming language designed for classroom use in undergraduate compilers courses. ChocoPy is a restricted subset of Python 3, which can easily be compiled to a target such as RISC-V. The language is fully specified using formal grammar, typing rules, and operational semantics. ChocoPy is used to teach CS 164 at UC Berkeley. ChocoPy has been designed by Rohan Padhye and Koushik Sen, with substantial contributions from Paul Hilfinger.
 
-A Rust compiler for Typed Python (ChocoPy) — featuring a hand-written lexer/parser, type checker, x86-64 code generator with mark-and-sweep garbage collection — with a browser-based playground compiled to WebAssembly. Write, compile, and run Typed Python programs entirely in the browser with no server required.
+A browser-based compiler playground for Typed Python (ChocoPy). The full Rust compiler runs as WebAssembly — write, compile, and run Typed Python programs entirely in the browser with no server required.
 
 ## Features
+
+- **Full Parsing + Type Checking via WebAssembly** — The Rust compiler runs client-side as a ~155KB WASM binary
+- **Human-Readable Error Messages** — Compiler errors explain what went wrong and suggest how to fix it, with source locations
+- **Interactive Typed AST Visualization** — Color-coded tree view with collapsible nodes and inferred type badges on every expression
+- **Type Provenance on Hover** — Hover any type badge to see where and why the type was inferred, with links to the declaration
+- **Execution Time Travel** — Step through program execution with a timeline scrubber; watch variables change in real-time and see the AST morph from untyped to typed
+- **Variable Lifetime Visualization** — See variable scopes and usage patterns across the program
+- **TypeScript Tree-Walking Interpreter** — Run programs in-browser with runtime error detection and source location tracking
+- **URL Sharing** — Share programs via LZ-string compressed URL hash; recipients see code, compilation result, and program output automatically
+- **Responsive Split-Panel Layout** — Desktop side-by-side panels with draggable divider; mobile stacked layout with tab switching
+- **12 Curated Examples** — Demonstrating classes, inheritance, closures, lists, and more
+
+## Compiler Architecture
+
+The compiler is written in Rust. In the browser, only the front-end stages run (via WASM):
+
+- **Lexer** — Hand-written tokenizer with indentation tracking. Implemented as an async pipe model (stable Rust does not support generators).
+- **Parser** — Recursive descent with 2-token lookahead to distinguish declarations from statements. Left recursion rewritten into loops; expression parsing uses precedence levels (`parse_exprN`) to manage operator hierarchy.
+- **Type Checker** — Produces a fully typed AST with inferred types on every expression. Non-fatal errors are collected with source locations. AST nodes use idiomatic Rust `struct`s and `enum`s with pattern matching instead of a class hierarchy.
+
+The compiler also includes an x86-64 code generator for native compilation, but this is feature-gated out of the WASM build.
 
 - **Code Editor** — CodeMirror 6 with Python syntax highlighting and error underlines
 - **Compilation** — Full Typed Python parsing and type checking via WASM
@@ -27,118 +48,6 @@ The compiler is written in Rust and handles the full pipeline from source code t
 - **Garbage Collector** — Mark-and-sweep GC triggered on allocation threshold
 - **Standard Library** — `chocopy_rs_std` provides built-in functions (`print`, `len`, `input`), memory allocation, GC, and error handling
 
-## Design Overview
-
-### Parser
-
-The compiler uses a hand-written lexer and parser.
-
-- **Lexer**: Implemented as a generator-like component. Since stable Rust does not support generators, this is simulated using an asynchronous pipe model.
-- **Parser**: A recursive descent parser where each `parse_xxx(...)` function maps to a grammar non-terminal. Left recursion is rewritten into loops. Expression parsing uses precedence levels (`parse_exprN(...)`) to manage operator hierarchy. The parser uses at most 2-token lookahead, primarily to differentiate declarations from statements.
-
-### Semantic Analysis
-
-The compiler supports intermediate typed and untyped ASTs in JSON format, compliant with the CS 164 spec. Internally:
-
-- AST nodes are implemented with idiomatic Rust `struct`s and `enum`s, instead of a class hierarchy.
-- Pattern matching replaces virtual dispatch for semantic analysis.
-
-### Code Generation
-
-Unlike the [ChocoPy Implementation Guide](https://chocopy.org/chocopy_implementation_guide.pdf), this compiler targets x86 instead of RISC-V and diverges in several implementation details.
-
-#### Symbol Naming
-
-- `$chocopy_main`: User program entry point
-- `$global`: Global variable section
-- Constructors: Use the class name (`MyClass`)
-- Methods: `<ClassName>.<MethodName>`
-- Prototypes: `<ClassName>.$proto`
-- Nested functions: `<ParentSymbol>.<FuncName>`
-- Standard library: All functions prefixed with `$` (except `main`)
-
-User-defined functions are not prefixed. Variable and attribute names are kept as-is. Hidden/internal attributes are prefixed with `$`.
-
-#### Register Usage
-
-- `RSP` and `RBP` retain their conventional roles (stack and frame pointers).
-- All other general-purpose registers are used freely.
-
-#### Object Representation
-
-Objects are 64-bit pointers. `0` denotes `None`.
-
-**Unboxed Values:**
-- `int` → 4 bytes, `bool` → 1 byte
-- Stored in 8-byte stack slots. In global variables and object fields, alignment is based on their actual size (packed layout).
-
-**Object Layout:**
-- **Header (24 bytes)**: 8 bytes pointer to `$proto` + 16 bytes reserved for GC (`$gc_is_marked`, `$gc_next`)
-- **Attributes** follow the header
-- **Array-like types** (`str`, `[T]`) add an 8-byte `$len` field plus packed element layout
-
-**Prototype Objects:**
-Every type `C` (including primitives) has a global `C.$proto` symbol pointing to a shared prototype object containing:
-- `$size`: Object size (positive) or per-element size for arrays (negative)
-- `$tag`: Type tag (`0` → user-defined/built-in object, `-1` → `[int]`/`[bool]`, `-2` → other lists)
-- `$map`: Reference bitmap for GC
-- Method table (starting with `__init__`)
-
-**Constructors:**
-Each class `C` has a constructor symbol `C` that allocates memory, initializes fields manually (not from prototype), and invokes `__init__`.
-
-#### Functions and Methods
-
-**Calling Convention:**
-- Arguments pushed in right-to-left order
-- Nested functions receive static link in `R10`
-- Stack aligned to 8 mod 16
-- Return values in `RAX`
-- Caller restores stack
-- `$chocopy_main` and standard library functions use the system ABI (System V or Windows)
-
-**Stack Frame Layout (Top to Bottom):**
-1. Outgoing arguments (for nested calls)
-2. Alignment padding (if needed)
-3. Temporaries
-4. Local variables
-5. Static link (`R10`)
-6. Saved `RBP` (caller's frame pointer)
-7. Return address
-
-#### Execution Environment
-
-The final binary is composed of:
-- `program.o`: Compiled user program
-- `chocopy_rs_std`: Standard runtime library
-- `libc`: System C library
-
-#### Standard Library
-
-`chocopy_rs_std` provides:
-- Built-in function implementations (`$print`, `$len`, etc.)
-- Memory allocation (`$alloc`) and garbage collection
-- Error handling
-- Entry point `main` → calls `$chocopy_main`
-
-### Garbage Collection
-
-Implements mark-and-sweep GC triggered by `$alloc` when a memory threshold is reached.
-
-**Allocation and Marking:**
-- Objects dynamically allocated on the heap are linked together via `$gc_next`
-- `$gc_is_marked` is set to `1` for reachable objects during mark phase
-- Unmarked objects are deallocated in the sweep phase
-- Live objects reset `$gc_is_marked` to `0`
-
-**Root Discovery:**
-GC walks through:
-- **Global references**: Map passed at `$init`
-- **Local references**: Maps attached after function calls (via `PREFETCHNTA`)
-- **Object members**: Maps in the class prototype (`$reference_bitmap`)
-
-Reference maps are bitstrings indicating which fields are pointers. For locals, each map describes one stack frame. The GC walks the full stack to gather all active maps.
-
 ## Browser Playground
 
 The browser playground compiles the Rust compiler to WebAssembly so the full parsing and type-checking pipeline runs client-side.
@@ -148,7 +57,8 @@ The browser playground compiles the Rust compiler to WebAssembly so the full par
 - **Interpreter**: Program execution uses a TypeScript tree-walking interpreter that traverses the typed AST JSON directly. Includes scope model with global/nonlocal redirects, class system with inheritance, and 1,000,000 operation safety limit.
 - **SvelteKit architecture**: Built with SvelteKit 2 and Svelte 5 runes (`$state`, `$derived`, `$effect`). All state lives in `+page.svelte`. Static site output via `@sveltejs/adapter-static`.
 - **CodeMirror editor**: CodeMirror 6 with Python syntax highlighting, inline error decorations, and keyboard shortcuts.
-- **AST visualization**: Interactive, color-coded tree view of the typed AST with collapsible nodes and inferred type badges.
+- **AST visualization**: Interactive, color-coded tree view of the typed AST with collapsible nodes, inferred type badges, and type provenance tooltips.
+- **Time travel**: Timeline tab with execution scrubber, variable state tracking, and AST morph animations between untyped and typed phases.
 - **URL sharing**: Programs are compressed with LZ-string and encoded into the URL hash. Shared links restore code, compilation result, and program output.
 - **Version detection**: The app detects WASM module updates and shows an auto-reload notification when a new version is available.
 
@@ -201,7 +111,7 @@ Output goes to `build/`. Serve statically or deploy to Vercel.
 |----------|--------|
 | `Cmd/Ctrl + Enter` | Compile |
 | `Cmd/Ctrl + Shift + Enter` | Compile + Run |
-| `Cmd/Ctrl + 1/2/3` | Switch output tabs |
+| `Cmd/Ctrl + 1/2/3/4` | Switch output tabs (AST / Run / Timeline / Docs) |
 
 ## Project Structure
 

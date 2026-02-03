@@ -118,4 +118,22 @@ export class Environment {
   isGlobal(): boolean {
     return this.currentFrame === this.globalFrame;
   }
+
+  snapshotVariables(cloneFn: (v: Value) => Value): Map<string, Value> {
+    const result = new Map<string, Value>();
+    // Collect from all frames, starting from global
+    const frames: Frame[] = [];
+    let f: Frame | null = this.currentFrame;
+    while (f) {
+      frames.push(f);
+      f = f.parent;
+    }
+    // Walk from global (bottom) to current (top) so inner scopes override
+    for (let i = frames.length - 1; i >= 0; i--) {
+      for (const [name, val] of frames[i].locals) {
+        result.set(name, cloneFn(val));
+      }
+    }
+    return result;
+  }
 }
