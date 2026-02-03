@@ -32,40 +32,39 @@
     {/each}
   </div>
 
-  <div class="tab-content">
-    {#if activeTab === 'ast'}
-      <div class="content-pane fade-in">
-        {#if result}
-          <ASTTree ast={result.untypedAst} typed={false} {onNodeClick} />
-        {:else}
-          <div class="empty-state">Compile to see the AST</div>
-        {/if}
-      </div>
-    {:else if activeTab === 'typed'}
-      <div class="content-pane fade-in">
-        {#if result}
-          <ASTTree ast={result.typedAst} typed={true} {onNodeClick} />
-        {:else}
-          <div class="empty-state">Compile to see the Typed AST</div>
-        {/if}
-      </div>
-    {:else if activeTab === 'run'}
-      <div class="content-pane fade-in">
-        <!-- Console is rendered by parent alongside this component -->
-      </div>
-    {:else if activeTab === 'docs'}
-      <div class="content-pane fade-in">
-        <DocsPanel />
-      </div>
-    {/if}
-  </div>
+  {#if activeTab !== 'run'}
+    <div class="tab-content">
+      {#if activeTab === 'ast'}
+        <div class="content-pane fade-in">
+          {#if result}
+            <ASTTree ast={result.untypedAst} typed={false} {onNodeClick} />
+          {:else}
+            <div class="empty-state">Compile to see the AST</div>
+          {/if}
+        </div>
+      {:else if activeTab === 'typed'}
+        <div class="content-pane fade-in">
+          {#if result}
+            <ASTTree ast={result.typedAst} typed={true} {onNodeClick} />
+          {:else}
+            <div class="empty-state">Compile to see the Typed AST</div>
+          {/if}
+        </div>
+      {:else if activeTab === 'docs'}
+        <div class="content-pane fade-in">
+          <DocsPanel />
+        </div>
+      {/if}
+    </div>
+  {/if}
 </div>
 
 <style>
   .output-panel {
     display: flex;
     flex-direction: column;
-    height: 100%;
+    flex: 1;
+    min-height: 0;
     overflow: hidden;
   }
 
