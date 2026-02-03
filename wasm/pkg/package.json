@@ -1,0 +1,15 @@
+{
+  "name": "chocopy-wasm",
+  "type": "module",
+  "version": "0.1.0",
+  "files": [
+    "chocopy_wasm_bg.wasm",
+    "chocopy_wasm.js",
+    "chocopy_wasm.d.ts"
+  ],
+  "main": "chocopy_wasm.js",
+  "types": "chocopy_wasm.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}
