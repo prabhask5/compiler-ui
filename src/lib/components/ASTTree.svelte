@@ -12,7 +12,7 @@
     onNodeClick: (loc: [number, number, number, number]) => void;
   } = $props();
 
-  let expandAll = $state(false);
+  let expandAll = $state(true);
 
   function toggleAll() {
     expandAll = !expandAll;

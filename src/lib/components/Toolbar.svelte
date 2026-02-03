@@ -28,7 +28,24 @@
 <header class="toolbar glass">
   <div class="toolbar-left">
     <h1 class="logo">
-      <span class="logo-icon">C</span>
+      <span class="logo-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="24" height="24">
+          <defs>
+            <linearGradient id="logo-bg" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="#0f0f13"/>
+              <stop offset="100%" stop-color="#09090b"/>
+            </linearGradient>
+            <linearGradient id="logo-accent" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="#818cf8"/>
+              <stop offset="100%" stop-color="#6366f1"/>
+            </linearGradient>
+          </defs>
+          <rect width="32" height="32" rx="7" fill="url(#logo-bg)"/>
+          <path d="M13 9.5 L6.5 16 L13 22.5" fill="none" stroke="url(#logo-accent)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M19 9.5 L25.5 16 L19 22.5" fill="none" stroke="url(#logo-accent)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M18 8 L14 24" fill="none" stroke="#a78bfa" stroke-width="2" stroke-linecap="round" opacity="0.7"/>
+        </svg>
+      </span>
       <span class="logo-text">Compiler UI</span>
     </h1>
 
@@ -128,12 +145,6 @@
     justify-content: center;
     width: 24px;
     height: 24px;
-    background: var(--accent);
-    color: white;
-    border-radius: var(--radius-sm);
-    font-family: var(--font-code);
-    font-size: 13px;
-    font-weight: 700;
   }
 
   .logo-text {

@@ -1,5 +1,7 @@
 # Compiler UI
 
+**[compiler.prabhas.io](https://compiler.prabhas.io)**
+
 A browser-based playground for a Rust Typed Python compiler. Write, compile, and run Typed Python programs entirely in the browser using WebAssembly.
 
 This is the frontend for the [Typed Python Compiler](https://github.com/prabhask5/typed-python-compiler). The Rust compiler is compiled to WebAssembly and loaded at runtime to handle parsing and type checking. Program execution is handled by a TypeScript tree-walking interpreter that runs the typed AST directly in the browser.
@@ -11,7 +13,7 @@ This is the frontend for the [Typed Python Compiler](https://github.com/prabhask
 - **AST Visualization** — Interactive, color-coded tree view for both untyped and typed ASTs
 - **Interpreter** — TypeScript tree-walking interpreter for running programs in the browser
 - **Examples** — 12 curated Typed Python programs demonstrating language features
-- **URL Sharing** — Share programs via compressed URL hash
+- **URL Sharing** — Share programs via compressed URL hash (recipients see code, compilation result, and program output automatically)
 - **Responsive** — Desktop split-panel layout, mobile stacked layout with tab switching
 
 ## Tech Stack

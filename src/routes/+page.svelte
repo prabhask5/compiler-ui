@@ -16,7 +16,7 @@
   let wasmState: WasmState = $state('idle');
   let source = $state(examples[0].code);
   let result: CompileResult | null = $state(null);
-  let activeTab: 'ast' | 'typed' | 'assembly' | 'run' = $state('ast');
+  let activeTab: 'ast' | 'typed' | 'run' | 'docs' = $state('ast');
   let splitPercent = $state(50);
   let highlightLoc: [number, number, number, number] | null = $state(null);
   let errors: CompilerError[] = $state([]);
@@ -40,9 +40,11 @@
     onStateChange((s) => (wasmState = s));
     initWasm().then(() => {
       // Check URL hash for shared code
-      loadFromHash();
-      // Auto-compile on load
-      doCompile();
+      const hasSharedCode = loadFromHash();
+      // Auto-compile on load, and auto-run if loading from shared URL
+      doCompile().then(() => {
+        if (hasSharedCode) doRun();
+      });
     });
 
     // Keyboard shortcuts
@@ -51,8 +53,7 @@
       if (mod && e.key === 'Enter') {
         e.preventDefault();
         if (e.shiftKey) {
-          doCompile();
-          doRun();
+          doCompile().then(() => doRun());
         } else {
           doCompile();
         }
@@ -62,7 +63,7 @@
       }
       if (mod && e.key >= '1' && e.key <= '4') {
         e.preventDefault();
-        const tabs: (typeof activeTab)[] = ['ast', 'typed', 'assembly', 'run'];
+        const tabs: (typeof activeTab)[] = ['ast', 'typed', 'run', 'docs'];
         activeTab = tabs[parseInt(e.key) - 1];
       }
     }
@@ -74,33 +75,41 @@
     };
   });
 
-  function loadFromHash() {
-    if (typeof window === 'undefined') return;
+  function loadFromHash(): boolean {
+    if (typeof window === 'undefined') return false;
     const hash = window.location.hash.slice(1);
     if (hash) {
       try {
         const decoded = decompressFromEncodedURIComponent(hash);
         if (decoded) {
           source = decoded;
+          return true;
         }
       } catch {
         // Ignore invalid hash
       }
     }
+    return false;
   }
 
-  function doCompile() {
-    if (wasmState !== 'ready') return;
-    isCompiling = true;
-    // Use setTimeout to allow UI to show compiling state
-    setTimeout(() => {
-      const r = compile(source);
-      if (r) {
-        result = r;
-        errors = r.errors;
+  function doCompile(): Promise<void> {
+    return new Promise((resolve) => {
+      if (wasmState !== 'ready') {
+        resolve();
+        return;
       }
-      isCompiling = false;
-    }, 10);
+      isCompiling = true;
+      // Use setTimeout to allow UI to show compiling state
+      setTimeout(() => {
+        const r = compile(source);
+        if (r) {
+          result = r;
+          errors = r.errors;
+        }
+        isCompiling = false;
+        resolve();
+      }, 10);
+    });
   }
 
   async function doRun() {
@@ -178,7 +187,17 @@
   }
 
   function onNodeClick(loc: [number, number, number, number]) {
-    highlightLoc = loc;
+    if (
+      highlightLoc &&
+      highlightLoc[0] === loc[0] &&
+      highlightLoc[1] === loc[1] &&
+      highlightLoc[2] === loc[2] &&
+      highlightLoc[3] === loc[3]
+    ) {
+      highlightLoc = null;
+    } else {
+      highlightLoc = loc;
+    }
   }
 </script>
 

@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { CompileResult } from '$lib/compiler/types';
   import ASTTree from './ASTTree.svelte';
-  import AssemblyView from './AssemblyView.svelte';
+  import DocsPanel from './DocsPanel.svelte';
 
   let {
     result,
@@ -10,16 +10,16 @@
     onNodeClick
   }: {
     result: CompileResult | null;
-    activeTab: 'ast' | 'typed' | 'assembly' | 'run';
-    onTabChange: (tab: 'ast' | 'typed' | 'assembly' | 'run') => void;
+    activeTab: 'ast' | 'typed' | 'run' | 'docs';
+    onTabChange: (tab: 'ast' | 'typed' | 'run' | 'docs') => void;
     onNodeClick: (loc: [number, number, number, number]) => void;
   } = $props();
 
   const tabs = [
     { id: 'ast' as const, label: 'AST' },
     { id: 'typed' as const, label: 'Typed AST' },
-    { id: 'assembly' as const, label: 'Assembly' },
-    { id: 'run' as const, label: 'Run' }
+    { id: 'run' as const, label: 'Run' },
+    { id: 'docs' as const, label: 'Docs' }
   ];
 </script>
 
@@ -49,13 +49,13 @@
           <div class="empty-state">Compile to see the Typed AST</div>
         {/if}
       </div>
-    {:else if activeTab === 'assembly'}
-      <div class="content-pane fade-in">
-        <AssemblyView />
-      </div>
     {:else if activeTab === 'run'}
       <div class="content-pane fade-in">
         <!-- Console is rendered by parent alongside this component -->
+      </div>
+    {:else if activeTab === 'docs'}
+      <div class="content-pane fade-in">
+        <DocsPanel />
       </div>
     {/if}
   </div>
