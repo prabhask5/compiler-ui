@@ -2,7 +2,7 @@
 
 ## Overview
 
-The ChocoPy Playground runs a Rust ChocoPy compiler in the browser via WebAssembly. Programs are compiled (parsed + type-checked) by the WASM module, then executed by a TypeScript tree-walking interpreter.
+Compiler UI runs a Rust Typed Python compiler in the browser via WebAssembly. Programs are compiled (parsed + type-checked) by the WASM module, then executed by a TypeScript tree-walking interpreter.
 
 ```
 ┌─────────────┐    source     ┌─────────────────┐    JSON AST    ┌───────────────┐
@@ -34,7 +34,7 @@ The Rust compiler (`typed-python-compiler/chocopy/`) was modified minimally:
 
 Located at `compiler-ui/wasm/`, this is a thin wrapper using `wasm-bindgen`:
 
-- Uses `chocopy` with `default-features = false` (no native deps)
+- Uses the Typed Python crate with `default-features = false` (no native deps)
 - Exports three functions: `parse()`, `typecheck()`, `compile()`
 - Each returns JSON strings of the AST
 - `compile()` returns both untyped and typed ASTs plus error list

@@ -1,4 +1,4 @@
-// ChocoPy AST TypeScript types — mirrors the Rust serde output
+// Typed Python AST TypeScript types — mirrors the Rust serde output
 
 export interface Position {
   row: number;

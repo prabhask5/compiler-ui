@@ -7,7 +7,7 @@
     <div class="placeholder-icon">⚙</div>
     <p class="placeholder-title">Assembly generation requires native compilation</p>
     <p class="placeholder-desc">
-      The ChocoPy compiler generates x86-64 machine code, which cannot be produced in the browser.
+      The Typed Python compiler generates x86-64 machine code, which cannot be produced in the browser.
       Use the AST views to explore the program structure, or the Run tab to execute programs.
     </p>
   </div>

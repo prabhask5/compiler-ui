@@ -29,7 +29,7 @@
   <div class="toolbar-left">
     <h1 class="logo">
       <span class="logo-icon">C</span>
-      <span class="logo-text">ChocoPy</span>
+      <span class="logo-text">Compiler UI</span>
     </h1>
 
     <div class="divider-v"></div>

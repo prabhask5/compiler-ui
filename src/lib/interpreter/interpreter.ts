@@ -510,7 +510,7 @@ export async function interpret(program: Program, io: IOHandler): Promise<void> 
     // Try looking up in environment (for nested functions passed as values)
     const val = env.get(name);
     if (val.kind !== 'none') {
-      // Nested functions aren't first-class values in ChocoPy in a straightforward way,
+      // Nested functions aren't first-class values in Typed Python in a straightforward way,
       // but the environment may have a function registered
       throw new RuntimeError(`'${name}' is not callable`, location);
     }

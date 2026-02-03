@@ -1,14 +1,16 @@
-# ChocoPy Playground
+# Compiler UI
 
-A browser-based playground for a Rust ChocoPy compiler. Write, compile, and run ChocoPy programs entirely in the browser using WebAssembly.
+A browser-based playground for a Rust Typed Python compiler. Write, compile, and run Typed Python programs entirely in the browser using WebAssembly.
+
+This is the frontend for the [Typed Python Compiler](https://github.com/prabhask5/typed-python-compiler). The Rust compiler is compiled to WebAssembly and loaded at runtime to handle parsing and type checking. Program execution is handled by a TypeScript tree-walking interpreter that runs the typed AST directly in the browser.
 
 ## Features
 
 - **Code Editor** — CodeMirror 6 with Python syntax highlighting and error underlines
-- **Compilation** — Full ChocoPy parsing and type checking via WASM
+- **Compilation** — Full Typed Python parsing and type checking via WASM
 - **AST Visualization** — Interactive, color-coded tree view for both untyped and typed ASTs
 - **Interpreter** — TypeScript tree-walking interpreter for running programs in the browser
-- **Examples** — 12 curated ChocoPy programs demonstrating language features
+- **Examples** — 12 curated Typed Python programs demonstrating language features
 - **URL Sharing** — Share programs via compressed URL hash
 - **Responsive** — Desktop split-panel layout, mobile stacked layout with tab switching
 

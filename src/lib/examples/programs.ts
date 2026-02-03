@@ -8,7 +8,7 @@ export const examples: Example[] = [
   {
     name: 'Hello World',
     description: 'Basic output',
-    code: `print("Hello, ChocoPy!")
+    code: `print("Hello, Typed Python!")
 print(42)
 print(True)
 print(False)

@@ -1,4 +1,4 @@
-// Runtime value types for the ChocoPy interpreter
+// Runtime value types for the Typed Python interpreter
 
 export type Value =
   | { kind: 'int'; value: number }
