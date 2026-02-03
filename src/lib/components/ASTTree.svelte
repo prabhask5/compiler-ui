@@ -6,12 +6,14 @@
   let {
     ast,
     onNodeClick,
+    onNodeHover = undefined,
     showTypeBadges = true,
     declarationMap = undefined,
     onTypeBadgeHover = undefined
   }: {
     ast: Program;
     onNodeClick: (loc: [number, number, number, number]) => void;
+    onNodeHover?: ((loc: [number, number, number, number] | null) => void) | undefined;
     showTypeBadges?: boolean;
     declarationMap?: DeclarationMap;
     onTypeBadgeHover?: ((info: TypeProvenanceInfo | null) => void) | undefined;
@@ -36,6 +38,7 @@
       key="Program"
       depth={0}
       {onNodeClick}
+      {onNodeHover}
       forceExpand={expandAll}
       {showTypeBadges}
       {declarationMap}

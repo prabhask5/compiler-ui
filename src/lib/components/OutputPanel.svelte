@@ -12,6 +12,7 @@
     activeTab,
     onTabChange,
     onNodeClick,
+    onNodeHover = undefined,
     declarationMap = undefined,
     onTypeBadgeHover = undefined,
     snapshots = [],
@@ -24,6 +25,7 @@
     activeTab: 'ast' | 'run' | 'timeline' | 'docs';
     onTabChange: (tab: 'ast' | 'run' | 'timeline' | 'docs') => void;
     onNodeClick: (loc: [number, number, number, number]) => void;
+    onNodeHover?: ((loc: [number, number, number, number] | null) => void) | undefined;
     declarationMap?: DeclarationMap;
     onTypeBadgeHover?: ((info: TypeProvenanceInfo | null) => void) | undefined;
     snapshots?: Snapshot[];
@@ -58,6 +60,7 @@
             <ASTTree
               ast={result.typedAst}
               {onNodeClick}
+              {onNodeHover}
               {declarationMap}
               {onTypeBadgeHover}
             />
@@ -74,6 +77,7 @@
             {lifetimes}
             {snapshotCompleted}
             {onNodeClick}
+            {onNodeHover}
             {declarationMap}
             {onTypeBadgeHover}
             {onTimelineStep}

@@ -10,6 +10,7 @@
     key,
     depth,
     onNodeClick,
+    onNodeHover = undefined,
     forceExpand,
     showTypeBadges = true,
     declarationMap = undefined,
@@ -19,6 +20,7 @@
     key: string;
     depth: number;
     onNodeClick: (loc: [number, number, number, number]) => void;
+    onNodeHover?: ((loc: [number, number, number, number] | null) => void) | undefined;
     forceExpand: boolean;
     showTypeBadges?: boolean;
     declarationMap?: DeclarationMap;
@@ -60,6 +62,18 @@
     }
   }
 
+  function handleMouseEnter() {
+    if (location && onNodeHover) {
+      onNodeHover(location);
+    }
+  }
+
+  function handleMouseLeave() {
+    if (onNodeHover) {
+      onNodeHover(null);
+    }
+  }
+
   function handleBadgeEnter() {
     if (!onTypeBadgeHover || !declarationMap) return;
     const info = getTypeProvenance(obj, declarationMap);
@@ -85,6 +99,8 @@
       <button
         class="node-label"
         onclick={handleClick}
+        onmouseenter={handleMouseEnter}
+        onmouseleave={handleMouseLeave}
         title={location ? `${location[0]}:${location[1]} - ${location[2]}:${location[3]}` : ''}
       >
         {#if key && key !== kind}
@@ -126,6 +142,7 @@
                     key={String(j)}
                     depth={depth + 1}
                     {onNodeClick}
+                    {onNodeHover}
                     {forceExpand}
                     {showTypeBadges}
                     {declarationMap}
@@ -139,6 +156,7 @@
                 key={child.key}
                 depth={depth + 1}
                 {onNodeClick}
+                {onNodeHover}
                 {forceExpand}
                 {showTypeBadges}
                 {declarationMap}

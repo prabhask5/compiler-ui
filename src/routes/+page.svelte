@@ -22,7 +22,9 @@
   let result: CompileResult | null = $state(null);
   let activeTab: 'ast' | 'run' | 'timeline' | 'docs' = $state('ast');
   let splitPercent = $state(50);
-  let highlightLoc: [number, number, number, number] | null = $state(null);
+  let clickedHighlightLoc: [number, number, number, number] | null = $state(null);
+  let hoverHighlightLoc: [number, number, number, number] | null = $state(null);
+  let highlightLoc: [number, number, number, number] | null = $derived(hoverHighlightLoc ?? clickedHighlightLoc);
   let errors: CompilerError[] = $state([]);
   let isCompiling = $state(false);
   let consoleOutput: InterpreterOutput[] = $state([]);
@@ -210,7 +212,8 @@
     result = null;
     errors = [];
     consoleOutput = [];
-    highlightLoc = null;
+    clickedHighlightLoc = null;
+    hoverHighlightLoc = null;
     snapshots = [];
     snapshotCompleted = false;
     declarationMap = undefined;
@@ -234,22 +237,26 @@
   }
 
   function onErrorClick(loc: [number, number, number, number]) {
-    highlightLoc = loc;
+    clickedHighlightLoc = loc;
     if (isMobile) mobileView = 'editor';
   }
 
   function onNodeClick(loc: [number, number, number, number]) {
     if (
-      highlightLoc &&
-      highlightLoc[0] === loc[0] &&
-      highlightLoc[1] === loc[1] &&
-      highlightLoc[2] === loc[2] &&
-      highlightLoc[3] === loc[3]
+      clickedHighlightLoc &&
+      clickedHighlightLoc[0] === loc[0] &&
+      clickedHighlightLoc[1] === loc[1] &&
+      clickedHighlightLoc[2] === loc[2] &&
+      clickedHighlightLoc[3] === loc[3]
     ) {
-      highlightLoc = null;
+      clickedHighlightLoc = null;
     } else {
-      highlightLoc = loc;
+      clickedHighlightLoc = loc;
     }
+  }
+
+  function onNodeHover(loc: [number, number, number, number] | null) {
+    hoverHighlightLoc = loc;
   }
 
   function onTypeBadgeHover(info: TypeProvenanceInfo | null) {
@@ -257,16 +264,17 @@
       // Position the tooltip near the cursor — use a fixed position updated on mousemove
       typeTooltip = { text: info.text, x: lastMouseX, y: lastMouseY };
       if (info.declarationLocation) {
-        highlightLoc = info.declarationLocation;
+        hoverHighlightLoc = info.declarationLocation;
       }
     } else {
       typeTooltip = null;
+      hoverHighlightLoc = null;
     }
   }
 
   function onTimelineStep(step: number, location?: [number, number, number, number]) {
     if (location) {
-      highlightLoc = location;
+      clickedHighlightLoc = location;
     }
   }
 
@@ -314,6 +322,7 @@
             {activeTab}
             onTabChange={(t) => (activeTab = t)}
             {onNodeClick}
+            {onNodeHover}
             {declarationMap}
             {onTypeBadgeHover}
             {snapshots}

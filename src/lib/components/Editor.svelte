@@ -54,6 +54,7 @@
           return Decoration.none;
         }
       }
+      if (tr.docChanged) return decos.map(tr.changes);
       return decos;
     },
     provide: (f) => EditorView.decorations.from(f)
@@ -71,6 +72,7 @@
           return Decoration.set(marks, true);
         }
       }
+      if (tr.docChanged) return decos.map(tr.changes);
       return decos;
     },
     provide: (f) => EditorView.decorations.from(f)
@@ -79,7 +81,7 @@
   function locToPos(doc: import('@codemirror/state').Text, row: number, col: number): number {
     if (row < 1 || row > doc.lines) return 0;
     const line = doc.line(row);
-    return line.from + Math.min(col - 1, line.length);
+    return line.from + Math.max(0, Math.min(col - 1, line.length));
   }
 
   onMount(() => {
@@ -134,13 +136,27 @@
     if (!view) return;
     if (highlightLoc) {
       const doc = view.state.doc;
-      const from = locToPos(doc, highlightLoc[0], highlightLoc[1]);
-      const to = locToPos(doc, highlightLoc[2], highlightLoc[3]);
-      view.dispatch({
-        effects: setHighlight.of({ from, to }),
-        selection: { anchor: from },
-        scrollIntoView: true
-      });
+      let from = locToPos(doc, highlightLoc[0], highlightLoc[1]);
+      let to = locToPos(doc, highlightLoc[2], highlightLoc[3]);
+      // If the range is empty or reversed, expand to the full line
+      if (from >= to) {
+        const row = highlightLoc[0];
+        if (row >= 1 && row <= doc.lines) {
+          const line = doc.line(row);
+          from = line.from;
+          to = line.to;
+        }
+      }
+      // Only dispatch if we have a valid range
+      if (from < to) {
+        view.dispatch({
+          effects: setHighlight.of({ from, to }),
+          selection: { anchor: from },
+          scrollIntoView: true
+        });
+      } else {
+        view.dispatch({ effects: setHighlight.of(null) });
+      }
     } else {
       view.dispatch({ effects: setHighlight.of(null) });
     }

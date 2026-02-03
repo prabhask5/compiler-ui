@@ -13,6 +13,7 @@
     lifetimes = [],
     snapshotCompleted = false,
     onNodeClick,
+    onNodeHover = undefined,
     declarationMap = undefined,
     onTypeBadgeHover = undefined,
     onTimelineStep = undefined
@@ -23,6 +24,7 @@
     lifetimes?: VariableLifetime[];
     snapshotCompleted?: boolean;
     onNodeClick: (loc: [number, number, number, number]) => void;
+    onNodeHover?: ((loc: [number, number, number, number] | null) => void) | undefined;
     declarationMap?: DeclarationMap;
     onTypeBadgeHover?: ((info: TypeProvenanceInfo | null) => void) | undefined;
     onTimelineStep?: ((step: number, location?: [number, number, number, number]) => void) | undefined;
@@ -102,6 +104,7 @@
             <ASTTree
               ast={untypedAst}
               {onNodeClick}
+              {onNodeHover}
               showTypeBadges={false}
               {declarationMap}
               {onTypeBadgeHover}
@@ -110,6 +113,7 @@
             <ASTTree
               ast={typedAst}
               {onNodeClick}
+              {onNodeHover}
               showTypeBadges={true}
               {declarationMap}
               {onTypeBadgeHover}
