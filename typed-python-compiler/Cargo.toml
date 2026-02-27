@@ -1,0 +1,11 @@
+[workspace]
+
+members = [
+    "chocopy",
+    "chocopy-stdlib",
+]
+
+default-members = [
+    "chocopy",
+    "chocopy-stdlib",
+]

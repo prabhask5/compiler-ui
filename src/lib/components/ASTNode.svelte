@@ -1,8 +1,20 @@
 <script lang="ts">
+  /**
+   * Recursive AST node renderer with type badges and source-location linking.
+   *
+   * Each node is displayed as an expandable row showing:
+   * - A chevron toggle for nodes with children.
+   * - The property key (if different from the node kind).
+   * - The AST node kind, color-coded by category (statement, expression, etc.).
+   * - A one-line summary (e.g. variable name, literal value).
+   * - An inferred-type badge when type information is available.
+   *
+   * Clicking a node label fires `onNodeClick` with the node's source location
+   * tuple, which the parent uses to highlight the corresponding editor range.
+   * The component renders itself recursively for child nodes and array elements.
+   */
   import { getNodeCategory, getCategoryColor, formatValueType } from '$lib/compiler/types';
   import { getNodeSummary, getNodeChildren } from '$lib/utils/format';
-  import type { DeclarationMap, TypeProvenanceInfo } from '$lib/utils/declarations';
-  import { getTypeProvenance } from '$lib/utils/declarations';
   import ASTNode from './ASTNode.svelte';
 
   let {
@@ -10,78 +22,69 @@
     key,
     depth,
     onNodeClick,
-    onNodeHover = undefined,
-    forceExpand,
-    showTypeBadges = true,
-    declarationMap = undefined,
-    onTypeBadgeHover = undefined
+    forceExpand
   }: {
+    /** The AST node object (or sub-object) to render. */
     node: unknown;
+    /** The property name under which this node appears in its parent. */
     key: string;
+    /** Current nesting depth; controls indentation and auto-expand behavior. */
     depth: number;
+    /** Callback fired with the node's [startRow, startCol, endRow, endCol] location. */
     onNodeClick: (loc: [number, number, number, number]) => void;
-    onNodeHover?: ((loc: [number, number, number, number] | null) => void) | undefined;
+    /** When true, all nodes expand; when false, all collapse. Driven by ASTTree. */
     forceExpand: boolean;
-    showTypeBadges?: boolean;
-    declarationMap?: DeclarationMap;
-    onTypeBadgeHover?: ((info: TypeProvenanceInfo | null) => void) | undefined;
   } = $props();
 
+  /** Whether this node's children are currently visible. */
+  // eslint-disable-next-line svelte/prefer-writable-derived -- expanded is toggled by user clicks AND synced from forceExpand prop
   let expanded = $state(false);
 
-  // Auto-expand first two levels
+  // Auto-expand the first two levels on initial render for a useful default view.
   $effect(() => {
     if (depth < 2) expanded = true;
   });
 
+  // Sync with the global expand/collapse toggle from ASTTree.
   $effect(() => {
     expanded = forceExpand;
   });
 
+  // --- Derived node metadata ---
   const obj = $derived(node as Record<string, unknown>);
+  /** The AST node's kind string (e.g. "FunctionDef", "BinOp"). */
   const kind = $derived((obj?.kind as string) || '');
+  /** Semantic category for color coding (statement, expression, literal, etc.). */
   const category = $derived(getNodeCategory(kind));
+  /** CSS color associated with the node's category. */
   const color = $derived(getCategoryColor(category));
+  /** Short human-readable summary (variable name, operator, literal value). */
   const summary = $derived(getNodeSummary(obj));
+  /** Child properties that should be rendered as nested nodes. */
   const children = $derived(getNodeChildren(obj));
   const hasChildren = $derived(children.length > 0);
+  /** Source location tuple, if the AST node carries location info. */
   const location = $derived(obj?.location as [number, number, number, number] | undefined);
+  /** Formatted inferred type string for display in the type badge. */
   const inferredType = $derived(
     obj?.inferredType
       ? formatValueType(obj.inferredType as import('$lib/compiler/types').ValueType)
       : ''
   );
 
+  /** Toggle this node's expanded/collapsed state. */
   function toggle() {
     expanded = !expanded;
   }
 
+  /**
+   * Handle a click on this node's label. Fires `onNodeClick` with the node's
+   * source location so the editor can highlight the corresponding range.
+   */
   function handleClick() {
     if (location) {
       onNodeClick(location);
     }
-  }
-
-  function handleMouseEnter() {
-    if (location && onNodeHover) {
-      onNodeHover(location);
-    }
-  }
-
-  function handleMouseLeave() {
-    if (onNodeHover) {
-      onNodeHover(null);
-    }
-  }
-
-  function handleBadgeEnter() {
-    if (!onTypeBadgeHover || !declarationMap) return;
-    const info = getTypeProvenance(obj, declarationMap);
-    if (info) onTypeBadgeHover(info);
-  }
-
-  function handleBadgeLeave() {
-    if (onTypeBadgeHover) onTypeBadgeHover(null);
   }
 </script>
 
@@ -99,8 +102,6 @@
       <button
         class="node-label"
         onclick={handleClick}
-        onmouseenter={handleMouseEnter}
-        onmouseleave={handleMouseLeave}
         title={location ? `${location[0]}:${location[1]} - ${location[2]}:${location[3]}` : ''}
       >
         {#if key && key !== kind}
@@ -115,20 +116,14 @@
           <span class="node-summary">{summary}</span>
         {/if}
         {#if inferredType}
-          <!-- svelte-ignore a11y_no_static_element_interactions -->
-          <span
-            class="type-badge"
-            class:hidden={!showTypeBadges}
-            onmouseenter={handleBadgeEnter}
-            onmouseleave={handleBadgeLeave}
-          >{inferredType}</span>
+          <span class="type-badge">{inferredType}</span>
         {/if}
       </button>
     </div>
 
     {#if expanded && hasChildren}
       <div class="node-children">
-        {#each children as child, i}
+        {#each children as child, i (child.key)}
           <div class="child" style="animation-delay: {Math.min(i * 30, 300)}ms">
             {#if Array.isArray(child.value)}
               <div class="array-node">
@@ -136,17 +131,13 @@
                   <span class="node-key">{child.key}</span>
                   <span class="array-count">[{child.value.length}]</span>
                 </div>
-                {#each child.value as item, j}
+                {#each child.value as item, j (j)}
                   <ASTNode
                     node={item}
                     key={String(j)}
                     depth={depth + 1}
                     {onNodeClick}
-                    {onNodeHover}
                     {forceExpand}
-                    {showTypeBadges}
-                    {declarationMap}
-                    {onTypeBadgeHover}
                   />
                 {/each}
               </div>
@@ -156,11 +147,7 @@
                 key={child.key}
                 depth={depth + 1}
                 {onNodeClick}
-                {onNodeHover}
                 {forceExpand}
-                {showTypeBadges}
-                {declarationMap}
-                {onTypeBadgeHover}
               />
             {:else}
               <div class="leaf-value">
@@ -260,14 +247,6 @@
     border-radius: 3px;
     font-weight: 500;
     white-space: nowrap;
-    transition: opacity 300ms var(--ease), transform 300ms var(--ease);
-    transform-origin: left center;
-  }
-
-  .type-badge.hidden {
-    opacity: 0;
-    transform: scale(0.8);
-    pointer-events: none;
   }
 
   .node-children {

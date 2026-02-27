@@ -1,104 +1,10 @@
 # Architecture
 
-## Rust Compiler Layer
-
-The compiler is written in Rust. In the browser, only the front-end stages run (via WASM):
-
-- **Lexer** — Hand-written tokenizer with indentation tracking. Implemented as an async pipe model (stable Rust does not support generators).
-- **Parser** — Recursive descent with 2-token lookahead to distinguish declarations from statements. Left recursion rewritten into loops; expression parsing uses precedence levels (`parse_exprN`) to manage operator hierarchy.
-- **Type Checker** — Produces a fully typed AST with inferred types on every expression. Non-fatal errors are collected with source locations. AST nodes use idiomatic Rust `struct`s and `enum`s with pattern matching instead of a class hierarchy.
-
-The compiler also includes an x86-64 code generator for native compilation, but this is feature-gated out of the WASM build.
-
-### Design Overview
-
-#### Parser
-
-The compiler uses a hand-written lexer and parser.
-
-- **Lexer**: Implemented as a generator-like component. Since stable Rust does not support generators, this is simulated using an asynchronous pipe model.
-- **Parser**: A recursive descent parser where each `parse_xxx(...)` function maps to a grammar non-terminal. Left recursion is rewritten into loops. Expression parsing uses precedence levels (`parse_exprN(...)`) to manage operator hierarchy. The parser uses at most 2-token lookahead, primarily to differentiate declarations from statements.
-
-#### Semantic Analysis
-
-The compiler supports intermediate typed and untyped ASTs in JSON format, compliant with the CS 164 spec. Internally:
-
-- AST nodes are implemented with idiomatic Rust `struct`s and `enum`s, instead of a class hierarchy.
-- Pattern matching replaces virtual dispatch for semantic analysis.
-
-#### Code Generation
-
-Unlike the [ChocoPy Implementation Guide](https://chocopy.org/chocopy_implementation_guide.pdf), this compiler targets x86 instead of RISC-V and diverges in several implementation details.
-
-##### Symbol Naming
-
-- `$chocopy_main`: User program entry point
-- `$global`: Global variable section
-- Constructors: Use the class name (`MyClass`)
-- Methods: `<ClassName>.<MethodName>`
-- Prototypes: `<ClassName>.$proto`
-- Nested functions: `<ParentSymbol>.<FuncName>`
-- Standard library: All functions prefixed with `$` (except `main`)
-
-User-defined functions are not prefixed. Variable and attribute names are kept as-is. Hidden/internal attributes are prefixed with `$`.
-
-##### Register Usage
-
-- `RSP` and `RBP` retain their conventional roles (stack and frame pointers).
-- All other general-purpose registers are used freely.
-
-##### Object Representation
-
-Objects are 64-bit pointers. `0` denotes `None`.
-
-**Unboxed Values:**
-- `int` → 4 bytes, `bool` → 1 byte
-- Stored in 8-byte stack slots. In global variables and object fields, alignment is based on their actual size (packed layout).
-
-**Object Layout:**
-- **Header (24 bytes)**: 8 bytes pointer to `$proto` + 16 bytes reserved for GC (`$gc_is_marked`, `$gc_next`)
-- **Attributes** follow the header
-- **Array-like types** (`str`, `[T]`) add an 8-byte `$len` field plus packed element layout
-
-**Prototype Objects:**
-Every type `C` (including primitives) has a global `C.$proto` symbol pointing to a shared prototype object containing:
-- `$size`: Object size (positive) or per-element size for arrays (negative)
-- `$tag`: Type tag (`0` → user-defined/built-in object, `-1` → `[int]`/`[bool]`, `-2` → other lists)
-- `$map`: Reference bitmap for GC
-- Method table (starting with `__init__`)
-
-**Constructors:**
-Each class `C` has a constructor symbol `C` that allocates memory, initializes fields manually (not from prototype), and invokes `__init__`.
-
-##### Functions and Methods
-
-**Calling Convention:**
-- Arguments pushed in right-to-left order
-- Nested functions receive static link in `R10`
-- Stack aligned to 8 mod 16
-- Return values in `RAX`
-- Caller restores stack
-- `$chocopy_main` and standard library functions use the system ABI (System V or Windows)
-
-**Stack Frame Layout (Top to Bottom):**
-1. Outgoing arguments (for nested calls)
-2. Alignment padding (if needed)
-3. Temporaries
-4. Local variables
-5. Static link (`R10`)
-6. Saved `RBP` (caller's frame pointer)
-7. Return address
-
-##### Execution Environment
-
-The final binary is composed of:
-- `program.o`: Compiled user program
-- `chocopy_rs_std`: Standard runtime library
-- `libc`: System C library
-
 ## Overview
 
-Typed Python Compiler UI runs a Rust Typed Python compiler in the browser via WebAssembly. Programs are compiled (parsed + type-checked) by the WASM module, then executed by a TypeScript tree-walking interpreter.
+Typed Python Compiler UI runs a Rust compiler in the browser via WebAssembly. Programs are compiled (parsed + type-checked) by the WASM module, then executed by a TypeScript tree-walking interpreter.
+
+For compiler internals (lexer, parser, type checker, code generator), see [typed-python-compiler](https://github.com/prabhask5/typed-python-compiler).
 
 ```
 ┌─────────────┐    source     ┌─────────────────┐    typed AST   ┌───────────────┐
@@ -159,7 +65,7 @@ The Rust AST types use serde for JSON serialization. Key mappings:
 | `Location` | `[startRow, startCol, endRow, endCol]` | `LocationArray` |
 | `ValueType::ClassValueType` | `{ kind: "ClassValueType", className }` | `ClassValueType` |
 
-The `inferredType` field is present on typed AST nodes (after type checking) and is displayed as a type badge in the AST visualization. It is omitted from the JSON when absent via `#[serde(skip_serializing_if = "Option::is_none")]`.
+The `inferredType` field is present on typed AST nodes (after type checking) and is displayed as a type badge in the AST visualization.
 
 ## Interpreter Design
 
@@ -193,23 +99,6 @@ The TypeScript interpreter (`src/lib/interpreter/`) executes typed AST JSON dire
 - All runtime errors include source location for UI highlighting
 - Division by zero, index out of bounds, None attribute access are caught
 
-### Snapshot Infrastructure
-
-The interpreter supports snapshot-based execution for time travel:
-
-- `interpretWithSnapshots()` runs the program synchronously, capturing a `Snapshot` at the top of each statement execution
-- Each snapshot records: step number, source location, deep-cloned variable state, console output, and call stack
-- Maximum 5,000 snapshots per execution (programs exceeding this show a warning)
-- Programs using `input()` are incompatible with snapshot mode (requires interactive I/O)
-
-## Declaration Map / Type Provenance
-
-The `buildDeclarationMap()` utility walks the typed AST and records every variable, parameter, and attribute declaration:
-
-- For each declaration: name, declared type, source location, scope path, and kind (variable/parameter/attribute)
-- When hovering a type badge on an Identifier node, the system looks up the declaration and shows where the type originated
-- For non-identifier expressions (e.g., binary operations), a type rule explanation is generated describing how the type was inferred
-
 ## UI Architecture
 
 ### Design System: "Clarity"
@@ -227,7 +116,6 @@ CSS custom properties define the entire visual language:
 - Duration hierarchy: 150ms (micro), 200ms (standard), 300ms (emphasis), 400ms (major)
 - `prefers-reduced-motion` respected via media queries
 - `font-variant-numeric: tabular-nums` on changing numbers to prevent width jumps
-- Crossfade between views rather than instant swaps
 
 ### Component Hierarchy
 
@@ -239,8 +127,6 @@ CSS custom properties define the entire visual language:
     ├── Divider (resizable split handle)
     ├── OutputPanel (tab container)
     │   ├── ASTTree → ASTNode (recursive tree)
-    │   ├── TimelinePanel (time travel scrubber + variable panel)
-    │   │   └── VariablePanel (variable state table)
     │   ├── DocsPanel (documentation)
     │   └── Console (execution output)
     └── ErrorPanel (error list)

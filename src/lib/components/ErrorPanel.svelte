@@ -1,4 +1,14 @@
 <script lang="ts">
+  /**
+   * Error list panel with source-location highlighting and enriched commentary.
+   *
+   * Displays compiler errors in a scrollable list. Each error row shows its
+   * line:column location, message text, and an optional "syntax" badge.
+   * Clicking an error fires `onErrorClick` to highlight the offending range
+   * in the editor. When enriched error data is available (generated via LLM
+   * or heuristic analysis), a chevron toggle reveals an explanatory commentary
+   * paragraph below the error row.
+   */
   import type { CompilerError } from '$lib/compiler/types';
   import type { EnrichedError } from '$lib/utils/error-commentary';
 
@@ -7,18 +17,23 @@
     enrichedErrors = undefined,
     onErrorClick
   }: {
+    /** Raw compiler error objects from the last compilation. */
     errors: CompilerError[];
+    /** Optionally enriched errors with human-readable commentary. */
     enrichedErrors?: EnrichedError[];
+    /** Callback to highlight the error's source location in the editor. */
     onErrorClick: (loc: [number, number, number, number]) => void;
   } = $props();
 
-  // Use enriched errors if available, otherwise wrap raw errors
+  // Use enriched errors if available, otherwise wrap raw errors with null commentary.
   const displayErrors = $derived(
     enrichedErrors ?? errors.map((e) => ({ original: e, commentary: null }))
   );
 
+  /** Index of the currently expanded commentary row, or null if none is open. */
   let expandedIndex: number | null = $state(null);
 
+  /** Toggle the commentary expansion for the error at the given index. */
   function toggleExpand(index: number) {
     expandedIndex = expandedIndex === index ? null : index;
   }
@@ -30,7 +45,7 @@
     <span class="error-count">{errors.length} error{errors.length !== 1 ? 's' : ''}</span>
   </div>
   <div class="error-list">
-    {#each displayErrors as enriched, i}
+    {#each displayErrors as enriched, i (i)}
       <div class="error-entry">
         <div class="error-item-row">
           <button class="error-item" onclick={() => onErrorClick(enriched.original.location)}>

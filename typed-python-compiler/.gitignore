@@ -1,0 +1,22 @@
+# === Rust build output ===
+target/
+**/*.rs.bk
+
+# === Rustup temp and cache ===
+/Cargo.lock
+!*/Cargo.lock
+
+# === IDEs and editors ===
+# VSCode
+.vscode/
+*.code-workspace
+
+# === OS junk ===
+.DS_Store
+Thumbs.db
+
+# === Logs and misc ===
+*.log
+*.tmp
+*.swp
+*.swo

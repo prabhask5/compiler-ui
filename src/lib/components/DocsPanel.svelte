@@ -3,15 +3,20 @@
     <section class="docs-section">
       <h2>Language Overview</h2>
       <p>
-        <strong>Typed Python</strong> (also known as <a href="https://chocopy.org/" target="_blank" rel="noopener">ChocoPy</a>)
-        is a restricted subset of Python 3 designed for compilers courses. It features:
+        <strong>Typed Python</strong> (also known as
+        <a href="https://chocopy.org/" target="_blank" rel="noopener">ChocoPy</a>) is a restricted
+        subset of Python 3 designed for compilers courses. It features:
       </p>
       <ul>
         <li>Static type annotations on all variables, parameters, and return types</li>
         <li>Classes with single inheritance and method overriding</li>
         <li>First-class lists with type-checked element types</li>
         <li>Nested functions with lexical closures</li>
-        <li><code>for</code>/<code>while</code> loops, <code>if</code>/<code>elif</code>/<code>else</code> branching</li>
+        <li>
+          <code>for</code>/<code>while</code> loops, <code>if</code>/<code>elif</code>/<code
+            >else</code
+          > branching
+        </li>
         <li>Built-in functions: <code>print</code>, <code>input</code>, <code>len</code></li>
         <li>Integer, boolean, string, and <code>None</code> types</li>
       </ul>
@@ -19,11 +24,24 @@
 
     <section class="docs-section">
       <h2>Compiler Architecture</h2>
-      <p>The underlying compiler is written in <strong>Rust</strong> and runs in the browser via WebAssembly:</p>
+      <p>
+        The underlying compiler is written in <strong>Rust</strong> and runs in the browser via WebAssembly:
+      </p>
       <ul>
-        <li><strong>Lexer</strong> — Hand-written tokenizer with indentation tracking, implemented as an async pipe model (stable Rust has no generators)</li>
-        <li><strong>Parser</strong> — Recursive descent with 2-token lookahead. Left recursion rewritten into loops; expression parsing uses precedence levels (<code>parse_exprN</code>) to manage operator hierarchy</li>
-        <li><strong>Type Checker</strong> — Produces a fully typed AST with inferred types on every expression. Non-fatal errors are collected and reported with source locations. AST nodes use idiomatic Rust <code>struct</code>s and <code>enum</code>s with pattern matching</li>
+        <li>
+          <strong>Lexer</strong> — Hand-written tokenizer with indentation tracking, implemented as an
+          async pipe model (stable Rust has no generators)
+        </li>
+        <li>
+          <strong>Parser</strong> — Recursive descent with 2-token lookahead. Left recursion
+          rewritten into loops; expression parsing uses precedence levels (<code>parse_exprN</code>)
+          to manage operator hierarchy
+        </li>
+        <li>
+          <strong>Type Checker</strong> — Produces a fully typed AST with inferred types on every
+          expression. Non-fatal errors are collected and reported with source locations. AST nodes
+          use idiomatic Rust <code>struct</code>s and <code>enum</code>s with pattern matching
+        </li>
       </ul>
     </section>
 
@@ -31,10 +49,19 @@
       <h2>Browser Playground</h2>
       <p>This UI runs the compiler entirely in the browser:</p>
       <ul>
-        <li>The Rust compiler is compiled to <strong>WebAssembly</strong> via <code>wasm-pack</code> with native-only dependencies feature-gated out — output is a ~155KB WASM binary</li>
-        <li>WASM is loaded at runtime via a Blob URL strategy to avoid Vite/Rollup import resolution issues</li>
+        <li>
+          The Rust compiler is compiled to <strong>WebAssembly</strong> via <code>wasm-pack</code> with
+          native-only dependencies feature-gated out — output is a ~155KB WASM binary
+        </li>
+        <li>
+          WASM is loaded at runtime via a Blob URL strategy to avoid Vite/Rollup import resolution
+          issues
+        </li>
         <li>Parsing and type checking happen in WASM — producing a fully typed AST as JSON</li>
-        <li>Program execution uses a <strong>TypeScript tree-walking interpreter</strong> that traverses the typed AST directly</li>
+        <li>
+          Program execution uses a <strong>TypeScript tree-walking interpreter</strong> that traverses
+          the typed AST directly
+        </li>
         <li>No server required — everything runs client-side</li>
       </ul>
     </section>
@@ -42,10 +69,18 @@
     <section class="docs-section">
       <h2>Features</h2>
       <ul>
-        <li><strong>Type provenance</strong> — Hover any type badge in the AST to see where and why the type was inferred, with a link to the declaration</li>
-        <li><strong>Time travel</strong> — Step through program execution with a timeline scrubber. Watch variables change in real-time and see the AST morph from untyped to typed</li>
-        <li><strong>Variable lifetimes</strong> — See variable scopes and usage patterns analyzed from the typed AST</li>
-        <li><strong>URL sharing</strong> — Programs are compressed with LZ-string and encoded into the URL hash. Shared links restore code, compilation result, and output</li>
+        <li>
+          <strong>Interactive AST</strong> — Color-coded tree view of the typed AST with collapsible nodes
+          and inferred type badges on every expression
+        </li>
+        <li>
+          <strong>Error commentary</strong> — Compiler errors include human-readable explanations that
+          describe what went wrong and suggest fixes
+        </li>
+        <li>
+          <strong>URL sharing</strong> — Programs are compressed with LZ-string and encoded into the URL
+          hash. Shared links restore code, compilation result, and output
+        </li>
       </ul>
     </section>
 
@@ -53,9 +88,17 @@
       <h2>Error Handling</h2>
       <ul>
         <li><strong>Syntax errors</strong> — Reported with source line and column locations</li>
-        <li><strong>Type errors</strong> — Human-readable messages that explain what went wrong and suggest fixes. Non-fatal; all errors collected and shown with source locations</li>
-        <li><strong>Runtime errors</strong> — Division by zero, index out of bounds, <code>None</code> attribute access — shown with source locations in the console</li>
-        <li><strong>Infinite loop protection</strong> — The interpreter enforces a 1,000,000 operation limit</li>
+        <li>
+          <strong>Type errors</strong> — Human-readable messages that explain what went wrong and suggest
+          fixes. Non-fatal; all errors collected and shown with source locations
+        </li>
+        <li>
+          <strong>Runtime errors</strong> — Division by zero, index out of bounds, <code>None</code> attribute
+          access — shown with source locations in the console
+        </li>
+        <li>
+          <strong>Infinite loop protection</strong> — The interpreter enforces a 1,000,000 operation limit
+        </li>
       </ul>
     </section>
 
@@ -71,8 +114,8 @@
           <span>Compile + Run</span>
         </div>
         <div class="shortcut-row">
-          <kbd>Cmd/Ctrl + 1/2/3/4</kbd>
-          <span>Switch output tabs</span>
+          <kbd>Cmd/Ctrl + 1/2/3</kbd>
+          <span>Switch output tabs (AST / Run / Docs)</span>
         </div>
       </div>
     </section>
@@ -80,8 +123,23 @@
     <section class="docs-section">
       <h2>Links</h2>
       <ul>
-        <li><a href="https://github.com/prabhask5/compiler-ui" target="_blank" rel="noopener">compiler-ui</a> — Source code</li>
-        <li><a href="https://compiler.prabhas.io" target="_blank" rel="noopener">compiler.prabhas.io</a> — Live site</li>
+        <li>
+          <a href="https://github.com/prabhask5/compiler-ui" target="_blank" rel="noopener"
+            >compiler-ui</a
+          > — Source code
+        </li>
+        <li>
+          <a
+            href="https://github.com/prabhask5/typed-python-compiler"
+            target="_blank"
+            rel="noopener">typed-python-compiler</a
+          > — Rust compiler internals
+        </li>
+        <li>
+          <a href="https://compiler.prabhas.io" target="_blank" rel="noopener"
+            >compiler.prabhas.io</a
+          > — Live site
+        </li>
       </ul>
     </section>
   </div>

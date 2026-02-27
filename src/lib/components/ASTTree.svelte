@@ -1,26 +1,29 @@
 <script lang="ts">
+  /**
+   * AST tree container with expand/collapse controls.
+   *
+   * Wraps the recursive ASTNode component and provides a toolbar button to
+   * globally expand or collapse every node in the tree. The `forceExpand` prop
+   * is propagated down to all ASTNode instances so they react to the toggle
+   * in unison.
+   */
   import type { Program } from '$lib/compiler/types';
-  import type { DeclarationMap, TypeProvenanceInfo } from '$lib/utils/declarations';
   import ASTNode from './ASTNode.svelte';
 
   let {
     ast,
-    onNodeClick,
-    onNodeHover = undefined,
-    showTypeBadges = true,
-    declarationMap = undefined,
-    onTypeBadgeHover = undefined
+    onNodeClick
   }: {
+    /** The root Program AST node produced by the compiler. */
     ast: Program;
+    /** Callback fired when the user clicks a node, passing its source location. */
     onNodeClick: (loc: [number, number, number, number]) => void;
-    onNodeHover?: ((loc: [number, number, number, number] | null) => void) | undefined;
-    showTypeBadges?: boolean;
-    declarationMap?: DeclarationMap;
-    onTypeBadgeHover?: ((info: TypeProvenanceInfo | null) => void) | undefined;
   } = $props();
 
+  /** Whether all tree nodes should currently be expanded. */
   let expandAll = $state(true);
 
+  /** Toggle the global expand/collapse state for the entire tree. */
   function toggleAll() {
     expandAll = !expandAll;
   }
@@ -33,17 +36,7 @@
     </button>
   </div>
   <div class="tree-content">
-    <ASTNode
-      node={ast}
-      key="Program"
-      depth={0}
-      {onNodeClick}
-      {onNodeHover}
-      forceExpand={expandAll}
-      {showTypeBadges}
-      {declarationMap}
-      {onTypeBadgeHover}
-    />
+    <ASTNode node={ast} key="Program" depth={0} {onNodeClick} forceExpand={expandAll} />
   </div>
 </div>
 

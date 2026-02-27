@@ -2,7 +2,6 @@ node_modules
 .DS_Store
 /build
 /.svelte-kit
-/typed-python-compiler
 /package
 .env
 .env.*

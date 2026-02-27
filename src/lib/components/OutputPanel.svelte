@@ -1,51 +1,48 @@
 <script lang="ts">
-  import type { CompileResult, Program } from '$lib/compiler/types';
-  import type { DeclarationMap, TypeProvenanceInfo } from '$lib/utils/declarations';
-  import type { Snapshot, SnapshotResult } from '$lib/interpreter/snapshot';
-  import type { VariableLifetime } from '$lib/utils/lifetimes';
+  /**
+   * Tabbed output panel container for the right side of the playground.
+   *
+   * Hosts three tabs:
+   * - **AST** -- renders the typed AST tree from the last successful compile.
+   * - **Run** -- slot area where the Console component is mounted by the parent
+   *   (the Run tab's content is handled externally so the Console can manage
+   *   its own lifecycle independently of tab switches).
+   * - **Docs** -- static documentation / reference panel.
+   *
+   * The active tab is controlled by the parent via the `activeTab` prop and
+   * `onTabChange` callback, keeping state management centralized in +page.svelte.
+   */
+  import type { CompileResult } from '$lib/compiler/types';
   import ASTTree from './ASTTree.svelte';
   import DocsPanel from './DocsPanel.svelte';
-  import TimelinePanel from './TimelinePanel.svelte';
 
   let {
     result,
     activeTab,
     onTabChange,
-    onNodeClick,
-    onNodeHover = undefined,
-    declarationMap = undefined,
-    onTypeBadgeHover = undefined,
-    snapshots = [],
-    snapshotCompleted = false,
-    untypedAst = undefined,
-    lifetimes = [],
-    onTimelineStep = undefined
+    onNodeClick
   }: {
+    /** The most recent compilation result, or null before first compile. */
     result: CompileResult | null;
-    activeTab: 'ast' | 'run' | 'timeline' | 'docs';
-    onTabChange: (tab: 'ast' | 'run' | 'timeline' | 'docs') => void;
+    /** Currently selected tab identifier. */
+    activeTab: 'ast' | 'run' | 'docs';
+    /** Callback when the user clicks a different tab. */
+    onTabChange: (tab: 'ast' | 'run' | 'docs') => void;
+    /** Callback when the user clicks an AST node to highlight its source location. */
     onNodeClick: (loc: [number, number, number, number]) => void;
-    onNodeHover?: ((loc: [number, number, number, number] | null) => void) | undefined;
-    declarationMap?: DeclarationMap;
-    onTypeBadgeHover?: ((info: TypeProvenanceInfo | null) => void) | undefined;
-    snapshots?: Snapshot[];
-    snapshotCompleted?: boolean;
-    untypedAst?: Program;
-    lifetimes?: VariableLifetime[];
-    onTimelineStep?: ((step: number, location?: [number, number, number, number]) => void) | undefined;
   } = $props();
 
+  /** Tab definitions rendered in the tab bar. */
   const tabs = [
     { id: 'ast' as const, label: 'AST' },
     { id: 'run' as const, label: 'Run' },
-    { id: 'timeline' as const, label: 'Timeline' },
     { id: 'docs' as const, label: 'Docs' }
   ];
 </script>
 
 <div class="output-panel">
   <div class="tab-bar">
-    {#each tabs as tab}
+    {#each tabs as tab (tab.id)}
       <button class="tab" class:active={activeTab === tab.id} onclick={() => onTabChange(tab.id)}>
         {tab.label}
       </button>
@@ -57,31 +54,10 @@
       {#if activeTab === 'ast'}
         <div class="content-pane fade-in">
           {#if result}
-            <ASTTree
-              ast={result.typedAst}
-              {onNodeClick}
-              {onNodeHover}
-              {declarationMap}
-              {onTypeBadgeHover}
-            />
+            <ASTTree ast={result.typedAst} {onNodeClick} />
           {:else}
             <div class="empty-state">Compile to see the AST</div>
           {/if}
-        </div>
-      {:else if activeTab === 'timeline'}
-        <div class="content-pane fade-in">
-          <TimelinePanel
-            {snapshots}
-            {untypedAst}
-            typedAst={result?.typedAst}
-            {lifetimes}
-            {snapshotCompleted}
-            {onNodeClick}
-            {onNodeHover}
-            {declarationMap}
-            {onTypeBadgeHover}
-            {onTimelineStep}
-          />
         </div>
       {:else if activeTab === 'docs'}
         <div class="content-pane fade-in">

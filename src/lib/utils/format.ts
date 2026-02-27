@@ -1,11 +1,58 @@
-// AST node formatting helpers
+/**
+ * @fileoverview AST node formatting helpers for the interactive tree visualization.
+ *
+ * The compiler emits AST nodes as plain JSON objects with a `kind` discriminator
+ * field. This module provides two complementary functions for rendering those
+ * nodes in a collapsible tree view:
+ *
+ * - {@link getNodeSummary} produces a short inline label for a node (e.g. the
+ *   identifier name, literal value, or operator symbol) so each tree row is
+ *   scannable at a glance.
+ * - {@link getNodeChildren} determines which fields of a node should appear as
+ *   expandable child rows, filtering out internal metadata and surfacing scalar
+ *   values alongside structural sub-trees.
+ *
+ * Together they decouple the tree UI component from any knowledge of specific
+ * AST node shapes — the component simply calls these two functions and renders
+ * whatever comes back.
+ */
 
-// Fields to skip in tree display (metadata, not structural)
+/**
+ * AST metadata fields excluded from the tree display.
+ *
+ * These fields are present on every node but carry bookkeeping data (node
+ * discriminator, source location, error state, inferred type) rather than
+ * structural children. Showing them would clutter the tree without adding
+ * pedagogical value.
+ *
+ * @internal
+ */
 const SKIP_FIELDS = new Set(['kind', 'location', 'errorMsg', 'inferredType']);
 
-// Fields that are always scalar values (not objects to recurse into)
+/**
+ * Fields whose values are always primitives (string, number, boolean).
+ *
+ * When one of these fields appears on a node, it is rendered as a leaf
+ * value rather than being recursed into — even if the field name might
+ * suggest a nested object in other contexts. This prevents, for example,
+ * an `Identifier` node's `name` string from being treated as an object.
+ *
+ * @internal
+ */
 const SCALAR_FIELDS = new Set(['name', 'value', 'operator', 'className', 'syntax', 'message']);
 
+/**
+ * Produces a concise inline summary string for a single AST node.
+ *
+ * The summary is displayed next to the node's `kind` label in the tree view,
+ * giving users immediate context. For example, an `Identifier` node shows its
+ * name in quotes, a `BinaryExpr` shows its operator, and a `FuncDef` shows
+ * the function name followed by `()`.
+ *
+ * @param node - A plain-object AST node with at least a `kind` field.
+ * @returns A short display string, or an empty string if no meaningful summary
+ *          can be derived for the node's kind.
+ */
 export function getNodeSummary(node: Record<string, unknown>): string {
   if (!node || typeof node !== 'object') return '';
 
@@ -60,11 +107,32 @@ export function getNodeSummary(node: Record<string, unknown>): string {
   }
 }
 
+/**
+ * A single child entry extracted from an AST node for tree rendering.
+ *
+ * The tree UI iterates over an array of these to render expandable rows.
+ * Scalar values are displayed inline; object/array values become nested
+ * sub-trees.
+ */
 export interface NodeChild {
+  /** The field name on the parent AST node (e.g. `"left"`, `"body"`, `"name"`). */
   key: string;
+  /** The field value — may be a primitive, a nested AST node object, or an array of nodes. */
   value: unknown;
 }
 
+/**
+ * Extracts the renderable child entries from an AST node.
+ *
+ * Walks the node's own enumerable properties, skipping fields listed in
+ * {@link SKIP_FIELDS} and null/undefined values. Fields in {@link SCALAR_FIELDS}
+ * are emitted as leaf entries when their runtime value is a primitive. All
+ * remaining fields (objects, arrays) are emitted as sub-tree entries for
+ * recursive rendering.
+ *
+ * @param node - A plain-object AST node.
+ * @returns An ordered array of {@link NodeChild} entries to render as tree rows.
+ */
 export function getNodeChildren(node: Record<string, unknown>): NodeChild[] {
   if (!node || typeof node !== 'object') return [];
 
@@ -95,6 +163,17 @@ export function getNodeChildren(node: Record<string, unknown>): NodeChild[] {
   return children;
 }
 
+/**
+ * Truncates a string to a maximum length, appending an ellipsis if needed.
+ *
+ * Used by {@link getNodeSummary} to keep inline labels from overflowing
+ * the tree view when string literals or error messages are long.
+ *
+ * @internal
+ * @param s - The string to truncate.
+ * @param max - Maximum allowed character count before truncation.
+ * @returns The original string if within the limit, otherwise a truncated version ending with "...".
+ */
 function truncate(s: string, max: number): string {
   return s.length > max ? s.slice(0, max) + '…' : s;
 }

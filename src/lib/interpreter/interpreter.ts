@@ -1,40 +1,85 @@
-import type {
-  Program,
-  Declaration,
-  Stmt,
-  ExprNode,
-  FuncDef,
-  ClassDef,
-  VarDef
-} from '$lib/compiler/types';
+/**
+ * @fileoverview Tree-walking interpreter for the Typed Python AST.
+ *
+ * Executes a type-checked {@link Program} by walking its AST nodes in two
+ * phases: first registering all top-level declarations (classes, functions,
+ * variables) into a {@link Environment | scope environment} and class/function
+ * registries, then sequentially executing the program's statements.
+ *
+ * The interpreter is fully async to support the `input()` built-in, which
+ * pauses execution until the host environment supplies a line of text via the
+ * {@link IOHandler} callback interface.
+ *
+ * A step counter ({@link MAX_STEPS}) acts as a safety net against infinite
+ * loops, throwing a {@link RuntimeError} when exceeded. Function returns are
+ * modeled as thrown {@link ReturnSignal} exceptions that unwind the call stack
+ * to the nearest `callFuncDef` catch boundary — a simple and reliable
+ * alternative to explicit return-value plumbing through every statement
+ * executor.
+ *
+ * @see {@link Environment} for the scope/variable resolution model.
+ * @see {@link Value} for the runtime value representation.
+ * @see {@link IOHandler} for the I/O abstraction layer.
+ */
+
+import type { Program, Declaration, Stmt, ExprNode, FuncDef, ClassDef } from '$lib/compiler/types';
 import type { Value } from './values';
-import {
-  intVal,
-  boolVal,
-  strVal,
-  noneVal,
-  listVal,
-  objectVal,
-  isTruthy,
-  valuesEqual,
-  displayValue,
-  isNone
-} from './values';
+import { intVal, boolVal, strVal, noneVal, listVal, objectVal, isTruthy, isNone } from './values';
 import { Environment } from './environment';
 import { builtinPrint, builtinInput, builtinLen, type IOHandler } from './builtins';
 
+/**
+ * A single line of interpreter output routed to the host UI.
+ *
+ * The `kind` discriminant tells the UI how to render the entry:
+ * - `'output'` — normal `print()` output.
+ * - `'error'`  — runtime error message.
+ * - `'input'`  — echoed user input.
+ * - `'status'` — interpreter status message (e.g., "program finished").
+ */
 export interface InterpreterOutput {
+  /** Discriminant indicating the output category. */
   kind: 'output' | 'error' | 'input' | 'status';
+
+  /** The textual content of this output line. */
   text: string;
+
+  /**
+   * Optional source location tuple `[startLine, startCol, endLine, endCol]`
+   * for error highlighting in the editor.
+   */
   location?: [number, number, number, number];
 }
 
+/**
+ * Maximum number of interpreter steps before aborting execution.
+ * Prevents runaway infinite loops from freezing the UI.
+ *
+ * @internal
+ */
 const MAX_STEPS = 1_000_000;
 
+/**
+ * Sentinel exception thrown by `return` statements to unwind the call stack.
+ *
+ * Caught by {@link callFuncDef} to extract the return value. Using an
+ * exception avoids threading a "should return" flag through every
+ * recursive `execStmt` / `evalExpr` call.
+ *
+ * @internal
+ */
 class ReturnSignal {
   constructor(public value: Value) {}
 }
 
+/**
+ * Error type for runtime failures during interpretation.
+ *
+ * Carries an optional source location so the host UI can highlight the
+ * offending code region.
+ *
+ * @internal
+ */
 class RuntimeError extends Error {
   constructor(
     message: string,
@@ -44,13 +89,47 @@ class RuntimeError extends Error {
   }
 }
 
+/**
+ * Metadata about a registered class, including inherited members.
+ *
+ * Built during the declaration-registration phase by {@link registerClass}
+ * and stored in the interpreter's class registry. Inheritance is resolved
+ * eagerly: parent methods and attributes are copied into the child's maps
+ * so that method resolution at runtime is a simple map lookup (with a
+ * fallback walk for the `super` chain via {@link resolveMethod}).
+ */
 interface ClassInfo {
+  /** The class name as declared in source. */
   name: string;
+
+  /** The superclass name (`'object'` for root classes). */
   superClass: string;
+
+  /** Method name to AST function definition, including inherited methods. */
   methods: Map<string, FuncDef>;
+
+  /**
+   * Attribute name to its declared type and default initial value.
+   * Includes inherited attributes.
+   */
   attrs: Map<string, { type: string; init: Value }>;
 }
 
+/**
+ * Executes a type-checked Typed Python program.
+ *
+ * This is the main entry point for interpretation. The function:
+ * 1. Registers all top-level declarations (classes, functions, variables).
+ * 2. Sequentially executes the program's statements.
+ * 3. Routes output, errors, and input requests through the provided {@link IOHandler}.
+ *
+ * @param program - The fully-parsed and type-checked AST to execute.
+ * @param io - The {@link IOHandler} callbacks for I/O operations.
+ * @returns A promise that resolves when execution completes (or an error is reported).
+ *
+ * @throws Re-throws unexpected (non-runtime) errors. {@link RuntimeError} instances
+ *   are caught and reported via `io.onError`.
+ */
 export async function interpret(program: Program, io: IOHandler): Promise<void> {
   const env = new Environment();
   let steps = 0;
@@ -61,6 +140,14 @@ export async function interpret(program: Program, io: IOHandler): Promise<void> 
   // Function registry (top-level)
   const functions = new Map<string, FuncDef>();
 
+  /**
+   * Increments the step counter and throws if the execution limit is exceeded.
+   * Called at the top of every statement and expression evaluation to guard
+   * against infinite loops.
+   *
+   * @internal
+   * @throws {RuntimeError} When the step count exceeds {@link MAX_STEPS}.
+   */
   function step() {
     steps++;
     if (steps > MAX_STEPS) {
@@ -97,6 +184,17 @@ export async function interpret(program: Program, io: IOHandler): Promise<void> 
     }
   }
 
+  /**
+   * Registers a class definition into the class registry.
+   *
+   * Eagerly copies inherited methods and attributes from the parent class
+   * (if any), then overlays the child's own declarations. This means each
+   * {@link ClassInfo} entry is self-contained and does not require a
+   * chain walk for attribute/method lookup during instantiation.
+   *
+   * @internal
+   * @param def - The class definition AST node.
+   */
   function registerClass(def: ClassDef) {
     const info: ClassInfo = {
       name: def.name.name,
@@ -127,6 +225,18 @@ export async function interpret(program: Program, io: IOHandler): Promise<void> 
     classes.set(def.name.name, info);
   }
 
+  /**
+   * Evaluates a literal AST node to its corresponding runtime value.
+   *
+   * Only handles literal node kinds (`IntegerLiteral`, `BooleanLiteral`,
+   * `StringLiteral`, `NoneLiteral`). Any other node kind falls through
+   * to `None` — this is safe because the type checker guarantees that
+   * variable initialisers and class attribute defaults are always literals.
+   *
+   * @internal
+   * @param node - The expression AST node (expected to be a literal).
+   * @returns The runtime {@link Value} corresponding to the literal.
+   */
   function evalLiteral(node: ExprNode): Value {
     switch (node.kind) {
       case 'IntegerLiteral':
@@ -142,6 +252,18 @@ export async function interpret(program: Program, io: IOHandler): Promise<void> 
     }
   }
 
+  /**
+   * Executes a single statement AST node.
+   *
+   * Dispatches on `stmt.kind` to handle expression statements, assignments,
+   * if/while/for control flow, and return statements. Each iteration of a
+   * loop body calls {@link step} to enforce the execution limit.
+   *
+   * @internal
+   * @param stmt - The statement AST node to execute.
+   * @throws {ReturnSignal} When a `return` statement is encountered.
+   * @throws {RuntimeError} On runtime errors (e.g., iterating a non-iterable).
+   */
   async function execStmt(stmt: Stmt): Promise<void> {
     step();
     switch (stmt.kind) {
@@ -204,6 +326,19 @@ export async function interpret(program: Program, io: IOHandler): Promise<void> 
     }
   }
 
+  /**
+   * Assigns a value to an assignment target (variable, member, or index).
+   *
+   * Handles three target kinds:
+   * - `Identifier` — sets the variable in the current {@link Environment} scope.
+   * - `MemberExpr` — sets an attribute on an object instance.
+   * - `IndexExpr` — sets an element in a list by integer index.
+   *
+   * @internal
+   * @param target - The left-hand-side expression (assignment target).
+   * @param value - The {@link Value} to assign.
+   * @throws {RuntimeError} On type mismatches or out-of-bounds index access.
+   */
   async function assignTarget(target: ExprNode, value: Value): Promise<void> {
     if (target.kind === 'Identifier') {
       env.set(target.name, value);
@@ -232,6 +367,19 @@ export async function interpret(program: Program, io: IOHandler): Promise<void> 
     }
   }
 
+  /**
+   * Evaluates an expression AST node to a runtime value.
+   *
+   * This is the core expression evaluator, handling literals, identifiers,
+   * unary/binary operations, conditionals, list construction, indexing,
+   * member access, function calls, and method calls. Each evaluation
+   * increments the step counter via {@link step}.
+   *
+   * @internal
+   * @param expr - The expression AST node to evaluate.
+   * @returns The resulting runtime {@link Value}.
+   * @throws {RuntimeError} On type errors, unknown operators, or missing attributes.
+   */
   async function evalExpr(expr: ExprNode): Promise<Value> {
     step();
     switch (expr.kind) {
@@ -345,11 +493,27 @@ export async function interpret(program: Program, io: IOHandler): Promise<void> 
       default:
         throw new RuntimeError(
           `Unknown expression kind: ${(expr as { kind: string }).kind}`,
-          expr.location
+          (expr as { location: [number, number, number, number] }).location
         );
     }
   }
 
+  /**
+   * Evaluates a binary expression, handling arithmetic, comparisons, and
+   * logical short-circuit operators (`and`, `or`).
+   *
+   * Supports:
+   * - Short-circuit `and`/`or` (Python semantics: returns the deciding operand).
+   * - `is` for reference/None equality.
+   * - String and list concatenation via `+`.
+   * - Integer arithmetic (`+`, `-`, `*`, `//`, `%`) with Python-style modulo.
+   * - Comparison operators for integers, booleans, and strings.
+   *
+   * @internal
+   * @param expr - The binary expression AST node.
+   * @returns The result {@link Value} of the operation.
+   * @throws {RuntimeError} On division by zero or unsupported operand type combinations.
+   */
   async function evalBinary(expr: ExprNode & { kind: 'BinaryExpr' }): Promise<Value> {
     // Short-circuit for `and` and `or`
     if (expr.operator === 'and') {
@@ -447,6 +611,18 @@ export async function interpret(program: Program, io: IOHandler): Promise<void> 
     );
   }
 
+  /**
+   * Walks the class hierarchy to find a method by name.
+   *
+   * Starts at the given class and follows the `superClass` chain until it
+   * finds a matching method or reaches the root `'object'` class. This
+   * enables inherited method calls and `__init__` resolution.
+   *
+   * @internal
+   * @param className - The class to start searching from.
+   * @param methodName - The method name to resolve.
+   * @returns The {@link FuncDef} AST node for the method, or `null` if not found.
+   */
   function resolveMethod(className: string, methodName: string): FuncDef | null {
     let cls: string | undefined = className;
     while (cls) {
@@ -459,6 +635,23 @@ export async function interpret(program: Program, io: IOHandler): Promise<void> 
     return null;
   }
 
+  /**
+   * Dispatches a function call by name, checking built-ins, primitive
+   * constructors, class instantiation, and user-defined functions in order.
+   *
+   * Resolution priority:
+   * 1. Built-in functions (`print`, `input`, `len`).
+   * 2. Primitive type constructors (`int`, `bool`, `str`) returning zero values.
+   * 3. Class constructors — creates an object, sets default attributes, calls `__init__`.
+   * 4. User-defined top-level functions from the function registry.
+   *
+   * @internal
+   * @param name - The function or class name to call.
+   * @param args - Unevaluated argument expression nodes.
+   * @param location - Source location for error reporting.
+   * @returns The return {@link Value} from the called function.
+   * @throws {RuntimeError} If the name is not callable or unknown.
+   */
   async function callFunction(
     name: string,
     args: ExprNode[],
@@ -483,7 +676,11 @@ export async function interpret(program: Program, io: IOHandler): Promise<void> 
     // Class instantiation
     const classInfo = classes.get(name);
     if (classInfo) {
-      const obj = objectVal(name);
+      const obj = objectVal(name) as {
+        kind: 'object';
+        className: string;
+        attrs: Map<string, Value>;
+      };
 
       // Set default attribute values
       for (const [attrName, attrInfo] of classInfo.attrs) {
@@ -518,6 +715,24 @@ export async function interpret(program: Program, io: IOHandler): Promise<void> 
     throw new RuntimeError(`Unknown function: ${name}`, location);
   }
 
+  /**
+   * Invokes a user-defined function (or method) by executing its AST body.
+   *
+   * Lifecycle:
+   * 1. Pushes a new {@link Environment} frame.
+   * 2. Processes inner declarations (`VarDef`, `GlobalDecl`, `NonLocalDecl`).
+   * 3. Binds parameter names to the provided argument values.
+   * 4. Registers nested function definitions in the function registry.
+   * 5. Executes the function body statements.
+   * 6. Catches {@link ReturnSignal} to extract the return value.
+   * 7. Cleans up nested function registrations and pops the frame.
+   *
+   * @internal
+   * @param func - The function definition AST node to execute.
+   * @param args - Pre-evaluated argument {@link Value values} (includes `self` for methods).
+   * @returns The return {@link Value}, or {@link noneVal | None} if no explicit return.
+   * @throws {RuntimeError} Re-thrown from inner statement/expression evaluation.
+   */
   async function callFuncDef(func: FuncDef, args: Value[]): Promise<Value> {
     env.pushFrame();
 
@@ -563,6 +778,18 @@ export async function interpret(program: Program, io: IOHandler): Promise<void> 
     }
   }
 
+  /**
+   * Processes a single declaration node within a function body.
+   *
+   * Handles:
+   * - `VarDef` — evaluates the literal initialiser and defines the local variable.
+   * - `GlobalDecl` — registers a global redirect in the current {@link Environment} frame.
+   * - `NonLocalDecl` — registers a nonlocal redirect in the current frame.
+   * - `FuncDef` / `ClassDef` — no-op here; handled separately after declarations.
+   *
+   * @internal
+   * @param decl - The declaration AST node to process.
+   */
   function processDeclaration(decl: Declaration): void {
     switch (decl.kind) {
       case 'VarDef': {
@@ -583,6 +810,17 @@ export async function interpret(program: Program, io: IOHandler): Promise<void> 
     }
   }
 
+  /**
+   * Deep-clones a runtime value, recursively copying mutable types.
+   *
+   * Primitive values (`int`, `bool`, `str`, `none`) are immutable and
+   * returned as-is. Lists are recursively cloned so that each class
+   * instance gets its own copy of default list attributes.
+   *
+   * @internal
+   * @param v - The {@link Value} to clone.
+   * @returns A deep copy of the value (or the same reference for immutables).
+   */
   function cloneValue(v: Value): Value {
     if (v.kind === 'list') {
       return listVal(v.elements.map(cloneValue), v.elementType);

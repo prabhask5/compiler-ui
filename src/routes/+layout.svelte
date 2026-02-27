@@ -1,9 +1,18 @@
 <script>
+  /**
+   * Global application layout with version-detection update banner.
+   *
+   * Wraps all page content in a full-viewport flex container and imports the
+   * global CSS reset/theme. When SvelteKit detects that a newer version of the
+   * app has been deployed (via the `$updated` store), a fixed banner appears
+   * at the bottom of the screen offering Reload / Dismiss actions.
+   */
   import '../app.css';
   import { updated } from '$app/stores';
 
   let { children } = $props();
 
+  /** Whether the user has dismissed the update banner for this session. */
   let dismissed = $state(false);
 </script>
 

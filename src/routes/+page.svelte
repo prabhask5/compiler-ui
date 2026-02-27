@@ -1,8 +1,30 @@
 <script lang="ts">
+  /**
+   * Main playground page -- orchestrates the entire compiler UI.
+   *
+   * All application state is managed here via Svelte 5 runes and passed down
+   * to child components as props. The page lifecycle is:
+   *
+   * 1. On mount, initialize the WASM compiler module.
+   * 2. Once ready, auto-compile the default example (or a shared snippet from
+   *    the URL hash).
+   * 3. The user edits code in the Editor, clicks Compile (Cmd+Enter), and
+   *    views the typed AST in the OutputPanel.
+   * 4. Clicking Run (Cmd+Shift+Enter) executes the AST via the tree-walking
+   *    interpreter, streaming output to the Console component.
+   * 5. Errors are displayed in the ErrorPanel with optional enriched commentary.
+   * 6. Clicking an error or AST node highlights the corresponding source range
+   *    in the editor.
+   *
+   * Keyboard shortcuts:
+   * - Cmd/Ctrl+Enter       -- Compile
+   * - Cmd/Ctrl+Shift+Enter -- Compile then Run
+   * - Cmd/Ctrl+1/2/3       -- Switch output tab (AST / Run / Docs)
+   */
   import { onMount } from 'svelte';
   import { initWasm, onStateChange, type WasmState } from '$lib/compiler/wasm-loader';
   import { compile } from '$lib/compiler/compiler';
-  import type { CompileResult, CompilerError, Program } from '$lib/compiler/types';
+  import type { CompileResult, CompilerError } from '$lib/compiler/types';
   import { examples } from '$lib/examples/programs';
   import Editor from '$lib/components/Editor.svelte';
   import Toolbar from '$lib/components/Toolbar.svelte';
@@ -11,43 +33,44 @@
   import Divider from '$lib/components/Divider.svelte';
   import Console from '$lib/components/Console.svelte';
   import { interpret, type InterpreterOutput } from '$lib/interpreter/interpreter';
-  import { interpretWithSnapshots, type Snapshot } from '$lib/interpreter/snapshot';
-  import { buildDeclarationMap, type DeclarationMap, type TypeProvenanceInfo } from '$lib/utils/declarations';
-  import { analyzeLifetimes, type VariableLifetime } from '$lib/utils/lifetimes';
   import { enrichErrors, type EnrichedError } from '$lib/utils/error-commentary';
   import { decompressFromEncodedURIComponent, compressToEncodedURIComponent } from 'lz-string';
 
+  // --- Core application state (Svelte 5 runes) ---
+
+  /** Lifecycle state of the WASM compiler: 'idle' | 'loading' | 'ready' | 'error'. */
   let wasmState: WasmState = $state('idle');
+  /** Python source code currently in the editor. */
   let source = $state(examples[0].code);
+  /** Result object from the most recent compilation, or null. */
   let result: CompileResult | null = $state(null);
-  let activeTab: 'ast' | 'run' | 'timeline' | 'docs' = $state('ast');
+  /** Currently active output panel tab. */
+  let activeTab: 'ast' | 'run' | 'docs' = $state('ast');
+  /** Horizontal split position as a percentage (editor width). */
   let splitPercent = $state(50);
-  let clickedHighlightLoc: [number, number, number, number] | null = $state(null);
-  let hoverHighlightLoc: [number, number, number, number] | null = $state(null);
-  let highlightLoc: [number, number, number, number] | null = $derived(hoverHighlightLoc ?? clickedHighlightLoc);
-  let scrollToHighlight = $derived(hoverHighlightLoc === null);
+  /** Source location to highlight in the editor, or null. */
+  let highlightLoc: [number, number, number, number] | null = $state(null);
+  /** Compiler errors from the last compilation. */
   let errors: CompilerError[] = $state([]);
+  /** True while a compilation is in progress. */
   let isCompiling = $state(false);
+  /** Accumulated interpreter output lines. */
   let consoleOutput: InterpreterOutput[] = $state([]);
+  /** True while the interpreter is executing. */
   let isRunning = $state(false);
+  /** Wall-clock time of the last run in milliseconds. */
   let runTime = $state(0);
+  /** True when the interpreter is blocked waiting for user input. */
   let waitingForInput = $state(false);
+  /** Resolve function for the pending input() promise; null when not waiting. */
   let inputResolver: ((value: string) => void) | null = null;
+  /** True when viewport width is below the mobile breakpoint (768px). */
   let isMobile = $state(false);
+  /** Which panel is visible on mobile (editor or output). */
   let mobileView: 'editor' | 'output' = $state('editor');
 
-  // WS2: Type provenance
-  let declarationMap: DeclarationMap | undefined = $state(undefined);
-  let typeTooltip: { text: string; x: number; y: number } | null = $state(null);
-
-  // Error commentary
+  /** Errors enriched with human-readable commentary for the ErrorPanel. */
   let enrichedErrorList: EnrichedError[] = $state([]);
-
-  // WS4: Time travel
-  let snapshots: Snapshot[] = $state([]);
-  let snapshotCompleted = $state(false);
-  let lifetimes: VariableLifetime[] = $state([]);
-  let untypedAst: Program | undefined = $state(undefined);
 
   function checkMobile() {
     isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
@@ -59,15 +82,12 @@
 
     onStateChange((s) => (wasmState = s));
     initWasm().then(() => {
-      // Check URL hash for shared code
       const hasSharedCode = loadFromHash();
-      // Auto-compile on load, and auto-run if loading from shared URL
       doCompile().then(() => {
         if (hasSharedCode) doRun();
       });
     });
 
-    // Keyboard shortcuts
     function handleKeydown(e: KeyboardEvent) {
       const mod = e.metaKey || e.ctrlKey;
       if (mod && e.key === 'Enter') {
@@ -78,12 +98,9 @@
           doCompile();
         }
       }
-      if (mod && e.key === 'e') {
+      if (mod && e.key >= '1' && e.key <= '3') {
         e.preventDefault();
-      }
-      if (mod && e.key >= '1' && e.key <= '4') {
-        e.preventDefault();
-        const tabs: (typeof activeTab)[] = ['ast', 'run', 'timeline', 'docs'];
+        const tabs: (typeof activeTab)[] = ['ast', 'run', 'docs'];
         activeTab = tabs[parseInt(e.key) - 1];
       }
     }
@@ -95,6 +112,12 @@
     };
   });
 
+  /**
+   * Attempt to load shared source code from the URL hash fragment.
+   * The hash contains an lz-string compressed/encoded Python source string.
+   *
+   * @returns True if shared code was successfully decoded and loaded.
+   */
   function loadFromHash(): boolean {
     if (typeof window === 'undefined') return false;
     const hash = window.location.hash.slice(1);
@@ -112,8 +135,16 @@
     return false;
   }
 
+  /** Minimum visual duration for compile feedback (avoids jarring flash). */
   const MIN_COMPILE_MS = 400;
 
+  /**
+   * Compile the current source code using the WASM compiler.
+   * Enforces a minimum visual duration so the "Compiling..." state is perceptible.
+   * Updates `result`, `errors`, and `enrichedErrorList` on completion.
+   *
+   * @returns A promise that resolves when compilation (and the minimum delay) finishes.
+   */
   function doCompile(): Promise<void> {
     return new Promise((resolve) => {
       if (wasmState !== 'ready') {
@@ -122,16 +153,12 @@
       }
       isCompiling = true;
       const start = performance.now();
-      // Use setTimeout to allow UI to show compiling state
       setTimeout(async () => {
         const r = compile(source);
         if (r) {
           result = r;
           errors = r.errors;
-          untypedAst = r.untypedAst;
-          declarationMap = buildDeclarationMap(r.typedAst);
-          lifetimes = analyzeLifetimes(r.typedAst);
-          enrichedErrorList = enrichErrors(r.errors, declarationMap, source);
+          enrichedErrorList = enrichErrors(r.errors, source);
         }
         const elapsed = performance.now() - start;
         if (elapsed < MIN_COMPILE_MS) {
@@ -143,8 +170,16 @@
     });
   }
 
+  /** Minimum visual duration for run feedback. */
   const MIN_RUN_MS = 300;
 
+  /**
+   * Execute the compiled AST via the tree-walking interpreter.
+   * Switches to the Run tab, clears previous output, and streams stdout/stderr
+   * lines into `consoleOutput`. Supports interactive `input()` calls by setting
+   * `waitingForInput` and awaiting `inputResolver`. Appends a status line with
+   * elapsed time on completion.
+   */
   async function doRun() {
     if (!result || result.hasErrors) return;
     activeTab = 'run';
@@ -152,18 +187,6 @@
     isRunning = true;
     waitingForInput = false;
     const start = performance.now();
-
-    // Run snapshot interpreter in parallel (non-blocking for the main interpret)
-    if (result.typedAst) {
-      try {
-        const snapshotResult = interpretWithSnapshots(result.typedAst);
-        snapshots = snapshotResult.snapshots;
-        snapshotCompleted = snapshotResult.completed;
-      } catch {
-        snapshots = [];
-        snapshotCompleted = false;
-      }
-    }
 
     try {
       await interpret(result.typedAst, {
@@ -199,6 +222,12 @@
     }
   }
 
+  /**
+   * Resolve a pending interpreter `input()` call with the user's typed value.
+   * Appends the input as an echo line in the console output.
+   *
+   * @param value - The string entered by the user.
+   */
   function submitInput(value: string) {
     if (inputResolver) {
       consoleOutput = [...consoleOutput, { kind: 'input', text: value }];
@@ -208,27 +237,31 @@
     }
   }
 
+  /**
+   * Load a predefined example program by index. Resets all compilation and
+   * execution state, then triggers a fresh compile.
+   *
+   * @param index - Index into the `examples` array.
+   */
   function onSelectExample(index: number) {
     source = examples[index].code;
     result = null;
     errors = [];
     consoleOutput = [];
-    clickedHighlightLoc = null;
-    hoverHighlightLoc = null;
-    snapshots = [];
-    snapshotCompleted = false;
-    declarationMap = undefined;
-    lifetimes = [];
-    untypedAst = undefined;
+    highlightLoc = null;
     enrichedErrorList = [];
     doCompile();
   }
 
+  /**
+   * Generate a shareable URL by compressing the current source into the URL
+   * hash fragment and copying the full URL to the clipboard. Briefly changes
+   * the Share button text to "Copied!" for user feedback.
+   */
   function onShare() {
     const compressed = compressToEncodedURIComponent(source);
     const url = `${window.location.origin}${window.location.pathname}#${compressed}`;
     navigator.clipboard.writeText(url).then(() => {
-      // Brief feedback
       const btn = document.querySelector('.share-btn .btn');
       if (btn) {
         btn.textContent = 'Copied!';
@@ -237,59 +270,40 @@
     });
   }
 
+  /**
+   * Handle a click on a compiler error. Highlights the error's source location
+   * in the editor and switches to the editor view on mobile.
+   *
+   * @param loc - The [startRow, startCol, endRow, endCol] source location tuple.
+   */
   function onErrorClick(loc: [number, number, number, number]) {
-    clickedHighlightLoc = loc;
+    highlightLoc = loc;
     if (isMobile) mobileView = 'editor';
   }
 
+  /**
+   * Handle a click on an AST node. Toggles the editor highlight: if the same
+   * location is already highlighted, clears it; otherwise highlights the new
+   * location.
+   *
+   * @param loc - The [startRow, startCol, endRow, endCol] source location tuple.
+   */
   function onNodeClick(loc: [number, number, number, number]) {
     if (
-      clickedHighlightLoc &&
-      clickedHighlightLoc[0] === loc[0] &&
-      clickedHighlightLoc[1] === loc[1] &&
-      clickedHighlightLoc[2] === loc[2] &&
-      clickedHighlightLoc[3] === loc[3]
+      highlightLoc &&
+      highlightLoc[0] === loc[0] &&
+      highlightLoc[1] === loc[1] &&
+      highlightLoc[2] === loc[2] &&
+      highlightLoc[3] === loc[3]
     ) {
-      clickedHighlightLoc = null;
+      highlightLoc = null;
     } else {
-      clickedHighlightLoc = loc;
+      highlightLoc = loc;
     }
-  }
-
-  function onNodeHover(loc: [number, number, number, number] | null) {
-    hoverHighlightLoc = loc;
-  }
-
-  function onTypeBadgeHover(info: TypeProvenanceInfo | null) {
-    if (info) {
-      // Position the tooltip near the cursor — use a fixed position updated on mousemove
-      typeTooltip = { text: info.text, x: lastMouseX, y: lastMouseY };
-      if (info.declarationLocation) {
-        hoverHighlightLoc = info.declarationLocation;
-      }
-    } else {
-      typeTooltip = null;
-      hoverHighlightLoc = null;
-    }
-  }
-
-  function onTimelineStep(step: number, location?: [number, number, number, number]) {
-    if (location) {
-      clickedHighlightLoc = location;
-    }
-  }
-
-  let lastMouseX = 0;
-  let lastMouseY = 0;
-
-  function handleMouseMove(e: MouseEvent) {
-    lastMouseX = e.clientX;
-    lastMouseY = e.clientY;
   }
 </script>
 
-<!-- svelte-ignore a11y_no_static_element_interactions -->
-<div class="playground" class:mobile={isMobile} onmousemove={handleMouseMove}>
+<div class="playground" class:mobile={isMobile}>
   <Toolbar
     {wasmState}
     {isCompiling}
@@ -306,7 +320,7 @@
       {#if mobileView === 'editor'}
         <div class="panel editor-panel">
           {#if wasmState === 'ready'}
-            <Editor bind:source {highlightLoc} {scrollToHighlight} {errors} />
+            <Editor bind:source {highlightLoc} scrollToHighlight={true} {errors} />
           {:else}
             <div class="skeleton-editor">
               <div class="skeleton" style="width: 60%; height: 14px; margin: 12px 16px"></div>
@@ -318,20 +332,7 @@
         </div>
       {:else}
         <div class="panel output-panel">
-          <OutputPanel
-            {result}
-            {activeTab}
-            onTabChange={(t) => (activeTab = t)}
-            {onNodeClick}
-            {onNodeHover}
-            {declarationMap}
-            {onTypeBadgeHover}
-            {snapshots}
-            {snapshotCompleted}
-            {untypedAst}
-            {lifetimes}
-            {onTimelineStep}
-          />
+          <OutputPanel {result} {activeTab} onTabChange={(t) => (activeTab = t)} {onNodeClick} />
           {#if activeTab === 'run'}
             <Console
               output={consoleOutput}
@@ -355,7 +356,7 @@
         class:active={mobileView === 'editor'}
         onclick={() => (mobileView = 'editor')}
       >
-        <span class="tab-icon">{'</>'}</span>
+        <span class="tab-icon">&lt;/&gt;</span>
         Editor
       </button>
       <button
@@ -371,7 +372,7 @@
     <div class="desktop-content">
       <div class="panel editor-panel" style="width: {splitPercent}%">
         {#if wasmState === 'ready'}
-          <Editor bind:source {highlightLoc} {scrollToHighlight} {errors} />
+          <Editor bind:source {highlightLoc} scrollToHighlight={true} {errors} />
         {:else if wasmState === 'loading'}
           <div class="skeleton-editor">
             <div class="skeleton" style="width: 60%; height: 14px; margin: 12px 16px"></div>
@@ -391,19 +392,7 @@
       <Divider bind:splitPercent />
 
       <div class="panel output-panel" style="width: {100 - splitPercent}%">
-        <OutputPanel
-          {result}
-          {activeTab}
-          onTabChange={(t) => (activeTab = t)}
-          {onNodeClick}
-          {declarationMap}
-          {onTypeBadgeHover}
-          {snapshots}
-          {snapshotCompleted}
-          {untypedAst}
-          {lifetimes}
-          {onTimelineStep}
-        />
+        <OutputPanel {result} {activeTab} onTabChange={(t) => (activeTab = t)} {onNodeClick} />
         {#if activeTab === 'run'}
           <Console
             output={consoleOutput}
@@ -421,15 +410,6 @@
     {/if}
   {/if}
 </div>
-
-{#if typeTooltip}
-  <div
-    class="type-tooltip"
-    style="left: {typeTooltip.x + 12}px; top: {typeTooltip.y - 8}px"
-  >
-    {typeTooltip.text}
-  </div>
-{/if}
 
 <style>
   .playground {
@@ -524,34 +504,5 @@
 
   .tab-icon {
     font-size: 16px;
-  }
-
-  /* Type provenance tooltip */
-  .type-tooltip {
-    position: fixed;
-    z-index: 1000;
-    max-width: 340px;
-    padding: var(--space-sm) var(--space-md);
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    box-shadow: var(--shadow-lg);
-    font-size: 12px;
-    line-height: 1.5;
-    color: var(--text-secondary);
-    pointer-events: none;
-    backdrop-filter: blur(20px) saturate(180%);
-    animation: tooltipFadeIn 200ms var(--ease) both;
-  }
-
-  @keyframes tooltipFadeIn {
-    from {
-      opacity: 0;
-      transform: translateY(4px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
   }
 </style>

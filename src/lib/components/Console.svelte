@@ -1,5 +1,15 @@
 <script lang="ts">
-  import { onMount, tick } from 'svelte';
+  /**
+   * Execution output console with interactive input support.
+   *
+   * Displays a scrollable log of interpreter output lines (stdout, stdin echo,
+   * errors, and status messages). When the running program calls `input()`,
+   * this component shows a text field and waits for the user to press Enter
+   * before resolving the interpreter's input promise. Error lines with source
+   * locations are rendered as clickable buttons that highlight the
+   * corresponding editor range.
+   */
+  import { tick } from 'svelte';
   import type { InterpreterOutput } from '$lib/interpreter/interpreter';
 
   let {
@@ -9,18 +19,26 @@
     submitInput,
     onErrorClick
   }: {
+    /** Accumulated output lines from the interpreter. */
     output: InterpreterOutput[];
+    /** True while the interpreter is executing. */
     isRunning: boolean;
+    /** True when the interpreter is blocked on an input() call. */
     waitingForInput: boolean;
+    /** Callback to resolve a pending input() with the user's typed value. */
     submitInput: (value: string) => void;
+    /** Callback invoked when the user clicks a runtime error with a source location. */
     onErrorClick: (loc: [number, number, number, number]) => void;
   } = $props();
 
+  /** Scrollable container element; used for auto-scrolling to latest output. */
   let scrollEl: HTMLDivElement = $state(null!);
+  /** The text input element shown when the program requests user input. */
   let inputEl: HTMLInputElement = $state(null!);
+  /** Current value of the input field, cleared after submission. */
   let inputValue = $state('');
 
-  // Auto-scroll on new output
+  // Auto-scroll to bottom whenever new output lines are appended.
   $effect(() => {
     if (output.length > 0) {
       tick().then(() => {
@@ -31,13 +49,19 @@
     }
   });
 
-  // Focus input when waiting
+  // Automatically focus the input field when the interpreter blocks on input().
   $effect(() => {
     if (waitingForInput && inputEl) {
       tick().then(() => inputEl?.focus());
     }
   });
 
+  /**
+   * Handle keydown events on the console input field.
+   * On Enter, submits the current value to the interpreter and clears the field.
+   *
+   * @param e - The keyboard event from the input element.
+   */
   function handleInputKeydown(e: KeyboardEvent) {
     if (e.key === 'Enter') {
       e.preventDefault();
@@ -60,7 +84,7 @@
       <div class="console-empty">Click Run to execute the program</div>
     {/if}
 
-    {#each output as line}
+    {#each output as line, i (i)}
       {#if line.kind === 'output'}
         <div class="line line-output">{line.text}</div>
       {:else if line.kind === 'input'}

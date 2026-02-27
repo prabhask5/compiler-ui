@@ -1,4 +1,13 @@
 <script lang="ts">
+  /**
+   * Header toolbar for the compiler playground.
+   *
+   * Renders the application logo, an examples dropdown menu that lets the user
+   * load predefined Python programs, a GitHub link, a Share button (copies a
+   * compressed URL to clipboard), and Compile / Run action buttons with
+   * keyboard shortcut hints. Buttons are disabled while the WASM compiler is
+   * loading or while a compile/run operation is in progress.
+   */
   import type { WasmState } from '$lib/compiler/wasm-loader';
   import { examples } from '$lib/examples/programs';
 
@@ -12,9 +21,13 @@
     onSelectExample,
     onShare
   }: {
+    /** Current lifecycle state of the WASM compiler module. */
     wasmState: WasmState;
+    /** True while a compilation is in flight. */
     isCompiling: boolean;
+    /** True while the interpreter is executing. */
     isRunning: boolean;
+    /** True when the last compile produced errors (disables Run). */
     hasErrors: boolean;
     onCompile: () => void;
     onRun: () => void;
@@ -22,6 +35,7 @@
     onShare: () => void;
   } = $props();
 
+  /** Whether the examples dropdown is currently open. */
   let showExamples = $state(false);
 </script>
 
@@ -32,18 +46,39 @@
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="24" height="24">
           <defs>
             <linearGradient id="logo-bg" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0%" stop-color="#0f0f13"/>
-              <stop offset="100%" stop-color="#09090b"/>
+              <stop offset="0%" stop-color="#0f0f13" />
+              <stop offset="100%" stop-color="#09090b" />
             </linearGradient>
             <linearGradient id="logo-accent" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0%" stop-color="#818cf8"/>
-              <stop offset="100%" stop-color="#6366f1"/>
+              <stop offset="0%" stop-color="#818cf8" />
+              <stop offset="100%" stop-color="#6366f1" />
             </linearGradient>
           </defs>
-          <rect width="32" height="32" rx="7" fill="url(#logo-bg)"/>
-          <path d="M13 9.5 L6.5 16 L13 22.5" fill="none" stroke="url(#logo-accent)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
-          <path d="M19 9.5 L25.5 16 L19 22.5" fill="none" stroke="url(#logo-accent)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
-          <path d="M18 8 L14 24" fill="none" stroke="#a78bfa" stroke-width="2" stroke-linecap="round" opacity="0.7"/>
+          <rect width="32" height="32" rx="7" fill="url(#logo-bg)" />
+          <path
+            d="M13 9.5 L6.5 16 L13 22.5"
+            fill="none"
+            stroke="url(#logo-accent)"
+            stroke-width="2.4"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+          <path
+            d="M19 9.5 L25.5 16 L19 22.5"
+            fill="none"
+            stroke="url(#logo-accent)"
+            stroke-width="2.4"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+          <path
+            d="M18 8 L14 24"
+            fill="none"
+            stroke="#a78bfa"
+            stroke-width="2"
+            stroke-linecap="round"
+            opacity="0.7"
+          />
         </svg>
       </span>
       <span class="logo-text">Typed Python Compiler UI</span>
@@ -62,7 +97,7 @@
         <!-- svelte-ignore a11y_no_static_element_interactions -->
         <div class="dropdown-backdrop" onclick={() => (showExamples = false)}></div>
         <div class="dropdown">
-          {#each examples as example, i}
+          {#each examples as example, i (i)}
             <button
               class="dropdown-item"
               onclick={() => {
@@ -87,14 +122,25 @@
       rel="noopener"
       aria-label="View source on GitHub"
     >
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="18" height="18" fill="currentColor">
-        <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox="0 0 16 16"
+        width="18"
+        height="18"
+        fill="currentColor"
+      >
+        <path
+          d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"
+        />
       </svg>
     </a>
 
     <div class="tooltip-wrapper share-btn">
       <button class="btn btn-ghost" onclick={onShare}> Share </button>
-      <span class="tooltip-text">Compresses your code into a shareable URL. Anyone with the link sees your code, compilation result, and program output.</span>
+      <span class="tooltip-text"
+        >Compresses your code into a shareable URL. Anyone with the link sees your code, compilation
+        result, and program output.</span
+      >
     </div>
 
     <button
@@ -226,8 +272,13 @@
   }
 
   @keyframes btnPulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.8; }
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.8;
+    }
   }
 
   .btn-run {
