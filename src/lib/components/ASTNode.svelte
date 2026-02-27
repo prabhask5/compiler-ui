@@ -126,6 +126,21 @@
     }
   });
 
+  // Auto-scroll to center the node when its type is revealed during propagation animation
+  $effect(() => {
+    if (typeJustRevealed && nodeEl) {
+      const container = nodeEl.closest('.tree-content');
+      if (container) {
+        const containerRect = container.getBoundingClientRect();
+        const nodeRect = nodeEl.getBoundingClientRect();
+        const containerCenter = containerRect.height / 2;
+        const nodeCenter = nodeRect.top - containerRect.top + nodeRect.height / 2;
+        const scrollTop = container.scrollTop + nodeCenter - containerCenter;
+        container.scrollTo({ top: Math.max(0, scrollTop), behavior: 'smooth' });
+      }
+    }
+  });
+
   /** Toggle this node's expanded/collapsed state. */
   function toggle() {
     expanded = !expanded;

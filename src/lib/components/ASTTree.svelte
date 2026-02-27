@@ -82,7 +82,7 @@
         isAnimatingTypes = false;
         typePropagationActive = false;
       }
-    }, 150);
+    }, 500);
   }
 
   // Clean up animation when AST changes or component unmounts
@@ -102,6 +102,7 @@
       class="control-btn type-propagation-btn"
       onclick={startTypePropagation}
       disabled={isAnimatingTypes}
+      title="Replay bottom-up type inference: types appear on leaf nodes (literals, identifiers) first, then propagate upward through parent expressions"
     >
       Visualize Type Propagation
     </button>
