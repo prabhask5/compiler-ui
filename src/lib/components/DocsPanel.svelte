@@ -139,7 +139,7 @@
         </li>
         <li>
           <a
-            href="https://github.com/prabhask5/typed-python-compiler"
+            href="https://github.com/prabhask5/compiler-ui/tree/main/typed-python-compiler"
             target="_blank"
             rel="noopener">typed-python-compiler</a
           > — Rust compiler internals

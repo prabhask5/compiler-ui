@@ -4,7 +4,7 @@ Try it here: **[compiler.prabhas.io](https://compiler.prabhas.io)**
 
 A browser-based playground for Typed Python ([ChocoPy](https://chocopy.org/)). The full Rust compiler runs as WebAssembly — write, compile, and run Typed Python programs entirely in the browser with no server required.
 
-For compiler internals (lexer, parser, type checker, code generator), see [typed-python-compiler](https://github.com/prabhask5/typed-python-compiler).
+For compiler internals (lexer, parser, type checker, code generator), see [typed-python-compiler](https://github.com/prabhask5/compiler-ui/tree/main/typed-python-compiler).
 
 ## Features
 
