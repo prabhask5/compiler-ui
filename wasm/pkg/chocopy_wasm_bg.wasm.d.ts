@@ -2,6 +2,7 @@
 /* eslint-disable */
 export const memory: WebAssembly.Memory;
 export const compile: (a: number, b: number) => [number, number];
+export const generate_assembly: (a: number, b: number) => [number, number];
 export const init: () => void;
 export const parse: (a: number, b: number) => [number, number];
 export const typecheck: (a: number, b: number) => [number, number];

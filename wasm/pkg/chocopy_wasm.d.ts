@@ -3,6 +3,8 @@
 
 export function compile(source: string): string;
 
+export function generate_assembly(source: string): string;
+
 export function init(): void;
 
 export function parse(source: string): string;
@@ -14,6 +16,7 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
     readonly compile: (a: number, b: number) => [number, number];
+    readonly generate_assembly: (a: number, b: number) => [number, number];
     readonly init: () => void;
     readonly parse: (a: number, b: number) => [number, number];
     readonly typecheck: (a: number, b: number) => [number, number];

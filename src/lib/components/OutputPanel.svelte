@@ -2,8 +2,9 @@
   /**
    * Tabbed output panel container for the right side of the playground.
    *
-   * Hosts three tabs:
+   * Hosts four tabs:
    * - **AST** -- renders the typed AST tree from the last successful compile.
+   * - **ASM** -- displays annotated x86-64 assembly with source line mappings.
    * - **Run** -- slot area where the Console component is mounted by the parent
    *   (the Run tab's content is handled externally so the Console can manage
    *   its own lifecycle independently of tab switches).
@@ -12,29 +13,46 @@
    * The active tab is controlled by the parent via the `activeTab` prop and
    * `onTabChange` callback, keeping state management centralized in +page.svelte.
    */
-  import type { CompileResult } from '$lib/compiler/types';
+  import type { CompileResult, AssemblyOutput } from '$lib/compiler/types';
   import ASTTree from './ASTTree.svelte';
+  import AssemblyPanel from './AssemblyPanel.svelte';
   import DocsPanel from './DocsPanel.svelte';
 
   let {
     result,
+    assembly,
+    sourceLines,
+    highlightedSourceLine,
+    highlightLoc,
     activeTab,
     onTabChange,
-    onNodeClick
+    onNodeClick,
+    onInstructionClick
   }: {
     /** The most recent compilation result, or null before first compile. */
     result: CompileResult | null;
+    /** The most recent assembly output, or null. */
+    assembly: AssemblyOutput | null;
+    /** Source code lines for assembly annotations. */
+    sourceLines: string[];
+    /** Currently highlighted source line (1-based), or null. */
+    highlightedSourceLine: number | null;
+    /** Source location currently highlighted for AST bidirectional sync. */
+    highlightLoc: [number, number, number, number] | null;
     /** Currently selected tab identifier. */
-    activeTab: 'ast' | 'run' | 'docs';
+    activeTab: 'ast' | 'asm' | 'run' | 'docs';
     /** Callback when the user clicks a different tab. */
-    onTabChange: (tab: 'ast' | 'run' | 'docs') => void;
+    onTabChange: (tab: 'ast' | 'asm' | 'run' | 'docs') => void;
     /** Callback when the user clicks an AST node to highlight its source location. */
     onNodeClick: (loc: [number, number, number, number]) => void;
+    /** Callback when the user clicks an assembly instruction with a source mapping. */
+    onInstructionClick: (sourceLine: number) => void;
   } = $props();
 
   /** Tab definitions rendered in the tab bar. */
   const tabs = [
     { id: 'ast' as const, label: 'AST' },
+    { id: 'asm' as const, label: 'ASM' },
     { id: 'run' as const, label: 'Run' },
     { id: 'docs' as const, label: 'Docs' }
   ];
@@ -54,9 +72,19 @@
       {#if activeTab === 'ast'}
         <div class="content-pane fade-in">
           {#if result}
-            <ASTTree ast={result.typedAst} {onNodeClick} />
+            <ASTTree ast={result.typedAst} {onNodeClick} {highlightLoc} />
           {:else}
             <div class="empty-state">Compile to see the AST</div>
+          {/if}
+        </div>
+      {:else if activeTab === 'asm'}
+        <div class="content-pane fade-in">
+          {#if assembly}
+            <AssemblyPanel {assembly} {sourceLines} {highlightedSourceLine} {onInstructionClick} />
+          {:else if result?.hasErrors}
+            <div class="empty-state">Fix errors to see assembly</div>
+          {:else}
+            <div class="empty-state">Compile to see assembly</div>
           {/if}
         </div>
       {:else if activeTab === 'docs'}

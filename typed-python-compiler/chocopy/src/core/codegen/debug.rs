@@ -8,6 +8,7 @@ pub(super) trait DebugWriter {
     fn finalize(self: Box<Self>) -> Vec<DebugChunk>;
 }
 
+#[allow(dead_code)]
 pub struct DummyDebug;
 
 impl DebugWriter for DummyDebug {

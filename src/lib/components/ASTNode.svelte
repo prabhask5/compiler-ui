@@ -22,7 +22,8 @@
     key,
     depth,
     onNodeClick,
-    forceExpand
+    forceExpand,
+    highlightLoc
   }: {
     /** The AST node object (or sub-object) to render. */
     node: unknown;
@@ -34,6 +35,8 @@
     onNodeClick: (loc: [number, number, number, number]) => void;
     /** When true, all nodes expand; when false, all collapse. Driven by ASTTree. */
     forceExpand: boolean;
+    /** Source location currently highlighted; matching nodes get visual emphasis. */
+    highlightLoc: [number, number, number, number] | null;
   } = $props();
 
   /** Whether this node's children are currently visible. */
@@ -72,6 +75,26 @@
       : ''
   );
 
+  /** Whether this node should be visually highlighted (its location matches the global highlight). */
+  const isHighlighted = $derived(
+    highlightLoc !== null &&
+      location !== undefined &&
+      location[0] === highlightLoc[0] &&
+      location[1] === highlightLoc[1] &&
+      location[2] === highlightLoc[2] &&
+      location[3] === highlightLoc[3]
+  );
+
+  /** Ref for the node header element for scroll-into-view. */
+  let headerEl: HTMLDivElement | undefined = $state(undefined);
+
+  // Scroll highlighted node into view
+  $effect(() => {
+    if (isHighlighted && headerEl) {
+      headerEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  });
+
   /** Toggle this node's expanded/collapsed state. */
   function toggle() {
     expanded = !expanded;
@@ -90,7 +113,12 @@
 
 {#if obj && typeof obj === 'object'}
   <div class="ast-node" style="--depth: {depth}; --color: {color}">
-    <div class="node-header" class:expandable={hasChildren}>
+    <div
+      class="node-header"
+      class:expandable={hasChildren}
+      class:highlighted={isHighlighted}
+      bind:this={headerEl}
+    >
       {#if hasChildren}
         <button class="expand-toggle" onclick={toggle}>
           <span class="chevron" class:open={expanded}>▸</span>
@@ -138,6 +166,7 @@
                     depth={depth + 1}
                     {onNodeClick}
                     {forceExpand}
+                    {highlightLoc}
                   />
                 {/each}
               </div>
@@ -148,6 +177,7 @@
                 depth={depth + 1}
                 {onNodeClick}
                 {forceExpand}
+                {highlightLoc}
               />
             {:else}
               <div class="leaf-value">
@@ -175,6 +205,12 @@
     gap: 4px;
     padding: 2px 0;
     border-radius: var(--radius-sm);
+    transition: background var(--duration-fast) var(--ease);
+  }
+
+  .node-header.highlighted {
+    background: rgba(99, 102, 241, 0.12);
+    box-shadow: inset 2px 0 0 var(--accent);
   }
 
   .expand-toggle {

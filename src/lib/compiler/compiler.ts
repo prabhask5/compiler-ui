@@ -26,7 +26,7 @@
  */
 
 import { initWasm, getWasm } from './wasm-loader';
-import type { CompileResult, Program } from './types';
+import type { CompileResult, Program, AssemblyOutput } from './types';
 
 // ── Initialization ────────────────────────────────────────────────────────────
 
@@ -127,6 +127,28 @@ export function typecheck(source: string): Program | null {
     return JSON.parse(json) as Program;
   } catch (e) {
     console.error('Typecheck error:', e);
+    return null;
+  }
+}
+
+/**
+ * Generates x86-64 assembly from ChocoPy source code.
+ *
+ * Returns an {@link AssemblyOutput} containing disassembled functions with
+ * source line mappings. Returns `null` if the program has errors or the
+ * WASM module is not loaded.
+ */
+export function generateAssembly(source: string): AssemblyOutput | null {
+  const wasm = getWasm();
+  if (!wasm) return null;
+
+  try {
+    const json = wasm.generate_assembly(source);
+    const result = JSON.parse(json);
+    if (result.error) return null;
+    return result as AssemblyOutput;
+  } catch (e) {
+    console.error('Assembly generation error:', e);
     return null;
   }
 }

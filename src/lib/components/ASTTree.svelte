@@ -12,12 +12,15 @@
 
   let {
     ast,
-    onNodeClick
+    onNodeClick,
+    highlightLoc
   }: {
     /** The root Program AST node produced by the compiler. */
     ast: Program;
     /** Callback fired when the user clicks a node, passing its source location. */
     onNodeClick: (loc: [number, number, number, number]) => void;
+    /** Source location currently highlighted for bidirectional sync. */
+    highlightLoc: [number, number, number, number] | null;
   } = $props();
 
   /** Whether all tree nodes should currently be expanded. */
@@ -36,7 +39,14 @@
     </button>
   </div>
   <div class="tree-content">
-    <ASTNode node={ast} key="Program" depth={0} {onNodeClick} forceExpand={expandAll} />
+    <ASTNode
+      node={ast}
+      key="Program"
+      depth={0}
+      {onNodeClick}
+      forceExpand={expandAll}
+      {highlightLoc}
+    />
   </div>
 </div>
 

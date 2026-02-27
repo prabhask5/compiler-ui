@@ -8,8 +8,10 @@ For compiler internals (lexer, parser, type checker, code generator), see [typed
 
 ## Features
 
-- **Full Parsing + Type Checking via WebAssembly** — The Rust compiler runs client-side as a ~155KB WASM binary
+- **Full Parsing + Type Checking via WebAssembly** — The Rust compiler runs client-side as a WASM binary
+- **x86-64 Assembly View** — Syntax-colored disassembly with source line annotations and bidirectional highlighting between source, AST, and assembly
 - **Interactive Typed AST Visualization** — Color-coded tree view with collapsible nodes and inferred type badges on every expression
+- **Bidirectional Highlighting** — Click any source line, AST node, or assembly instruction to highlight corresponding regions across all panels
 - **Human-Readable Error Commentary** — Compiler errors include explanations that describe what went wrong and suggest fixes
 - **TypeScript Tree-Walking Interpreter** — Run programs in-browser with runtime error detection and source location tracking
 - **URL Sharing** — Share programs via LZ-string compressed URL hash; recipients see code, compilation result, and output automatically
@@ -18,12 +20,14 @@ For compiler internals (lexer, parser, type checker, code generator), see [typed
 
 ## How It Works
 
-The Rust compiler is compiled to WebAssembly via `wasm-pack`. It handles parsing and type checking entirely in the browser, producing a fully typed AST as JSON. A TypeScript tree-walking interpreter then executes the typed AST directly — no server required.
+The Rust compiler is compiled to WebAssembly via `wasm-pack`. It handles parsing, type checking, and x86-64 code generation entirely in the browser. The typed AST is rendered as an interactive tree, and the generated machine code is disassembled with `iced-x86` for the assembly view. A TypeScript tree-walking interpreter executes the typed AST directly — no server required.
 
 ```
-Source Code → WASM Module (parse + typecheck) → Typed AST JSON → TypeScript Interpreter → Console Output
-                                                       ↓
-                                                  AST Tree UI
+Source Code → WASM Module → Typed AST JSON → TypeScript Interpreter → Console Output
+                  ↓                ↓
+             x86-64 Code      AST Tree UI
+                  ↓
+           Assembly View
 ```
 
 ## Tech Stack
@@ -75,7 +79,7 @@ Output goes to `build/`. Serve statically or deploy to Vercel.
 |----------|--------|
 | `Cmd/Ctrl + Enter` | Compile |
 | `Cmd/Ctrl + Shift + Enter` | Compile + Run |
-| `Cmd/Ctrl + 1/2/3` | Switch output tabs (AST / Run / Docs) |
+| `Cmd/Ctrl + 1/2/3/4` | Switch output tabs (AST / ASM / Run / Docs) |
 
 ## Project Structure
 

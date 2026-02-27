@@ -42,6 +42,8 @@ interface WasmExports {
   parse: (source: string) => string;
   /** Runs parse + type-check and returns JSON-serialized typed {@link types.Program}. */
   typecheck: (source: string) => string;
+  /** Generates x86-64 assembly and returns JSON-serialized {@link types.AssemblyOutput}. */
+  generate_assembly: (source: string) => string;
 }
 
 // ── Module-Level State ────────────────────────────────────────────────────────
@@ -163,7 +165,8 @@ export async function initWasm(): Promise<WasmExports> {
       wasmModule = {
         compile: mod.compile,
         parse: mod.parse,
-        typecheck: mod.typecheck
+        typecheck: mod.typecheck,
+        generate_assembly: mod.generate_assembly
       };
 
       setState('ready');

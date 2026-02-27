@@ -132,6 +132,18 @@
     return line.from + Math.max(0, Math.min(col - 1, line.length));
   }
 
+  /**
+   * Convert a 1-based (row, col) to a 0-based offset for exclusive end positions.
+   *
+   * The Rust compiler uses 1-based inclusive columns, but CodeMirror ranges are
+   * [from, to) exclusive. For end positions we must NOT subtract 1 from the column.
+   */
+  function locToPosEnd(doc: import('@codemirror/state').Text, row: number, col: number): number {
+    if (row < 1 || row > doc.lines) return 0;
+    const line = doc.line(row);
+    return line.from + Math.max(0, Math.min(col, line.length));
+  }
+
   onMount(() => {
     const state = EditorState.create({
       doc: source,
@@ -185,7 +197,7 @@
     if (highlightLoc) {
       const doc = view.state.doc;
       let from = locToPos(doc, highlightLoc[0], highlightLoc[1]);
-      let to = locToPos(doc, highlightLoc[2], highlightLoc[3]);
+      let to = locToPosEnd(doc, highlightLoc[2], highlightLoc[3]);
       // If the range is empty or reversed, expand to the full line
       if (from >= to) {
         const row = highlightLoc[0];
@@ -222,7 +234,7 @@
       .filter((e) => e.location)
       .map((e) => ({
         from: locToPos(doc, e.location[0], e.location[1]),
-        to: locToPos(doc, e.location[2], e.location[3])
+        to: locToPosEnd(doc, e.location[2], e.location[3])
       }));
     view.dispatch({ effects: setErrors.of(ranges) });
   });

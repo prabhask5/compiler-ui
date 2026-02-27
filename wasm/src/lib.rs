@@ -37,3 +37,16 @@ pub fn compile(source: &str) -> String {
         untyped_json, typed_json, errors_json, has_errors
     )
 }
+
+#[wasm_bindgen]
+pub fn generate_assembly(source: &str) -> String {
+    let ast = chocopy::core::frontend::process_str(source);
+    let typed = chocopy::core::typecheck::check(ast);
+    if !typed.errors.errors.is_empty() {
+        return r#"{"error":"Program has errors"}"#.to_string();
+    }
+    let code_set = chocopy::core::codegen::gen_code_set(typed, chocopy::core::codegen::Platform::Linux);
+    let source_lines: Vec<&str> = source.lines().collect();
+    let output = chocopy::core::codegen::asm_text::disassemble(&code_set, &source_lines);
+    serde_json::to_string(&output).unwrap_or_default()
+}

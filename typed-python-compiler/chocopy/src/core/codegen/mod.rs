@@ -1,45 +1,69 @@
+#[cfg(feature = "native")]
 mod codeview;
+#[cfg(feature = "native")]
 mod debug;
+#[cfg(feature = "native")]
 mod dwarf;
+#[cfg(feature = "native")]
 mod gimli_writer;
+#[allow(dead_code)]
 mod x64;
+#[allow(dead_code)]
+pub mod asm_text;
 
 use crate::common::local_env::*;
 use crate::common::node::*;
-use debug::*;
-use object::{write::*, *};
 use std::collections::BTreeMap;
 use std::collections::HashMap;
+
+#[cfg(feature = "native")]
+use debug::*;
+#[cfg(feature = "native")]
+use object::{write::*, *};
+#[cfg(feature = "native")]
 use std::convert::*;
+#[cfg(feature = "native")]
 use std::ffi::OsStr;
+#[cfg(feature = "native")]
 use std::io::Write;
+#[cfg(feature = "native")]
 use std::path::*;
 
 // Names for special symbol
-
-// Prototype symbols for primitive types
+// These constants are used by x64.rs and gen_object (native only).
+#[allow(dead_code)]
 const BOOL_PROTOTYPE: &str = "bool.$proto";
+#[allow(dead_code)]
 const INT_PROTOTYPE: &str = "int.$proto";
+#[allow(dead_code)]
 const STR_PROTOTYPE: &str = "str.$proto";
+#[allow(dead_code)]
 const BOOL_LIST_PROTOTYPE: &str = "[bool].$proto";
+#[allow(dead_code)]
 const INT_LIST_PROTOTYPE: &str = "[int].$proto";
+#[allow(dead_code)]
 const OBJECT_LIST_PROTOTYPE: &str = "[object].$proto";
-
-// Standard library function symboles
+#[allow(dead_code)]
 const BUILTIN_ALLOC_OBJ: &str = "$alloc_obj";
+#[allow(dead_code)]
 const BUILTIN_DIV_ZERO: &str = "$div_zero";
+#[allow(dead_code)]
 const BUILTIN_OUT_OF_BOUND: &str = "$out_of_bound";
+#[allow(dead_code)]
 const BUILTIN_NONE_OP: &str = "$none_op";
+#[allow(dead_code)]
 const BUILTIN_LEN: &str = "$len";
+#[allow(dead_code)]
 const BUILTIN_INPUT: &str = "$input";
+#[allow(dead_code)]
 const BUILTIN_PRINT: &str = "$print";
+#[allow(dead_code)]
 const BUILTIN_INIT: &str = "$init";
-
-// Program entry point symbol
+#[allow(dead_code)]
 const BUILTIN_CHOCOPY_MAIN: &str = "$chocopy_main";
-
-// Special data section symbols
+#[allow(dead_code)]
 const GLOBAL_SECTION: &str = "$global";
+#[allow(dead_code)]
 const INIT_PARAM: &str = "$init_param";
 
 #[derive(PartialEq, Eq, Clone, Copy)]
@@ -49,24 +73,27 @@ pub enum Platform {
     Macos,
 }
 
+// The types below are constructed by x64.rs and consumed by gen_object/debug (native).
+// When building without native, some fields appear unused — allow(dead_code) silences this.
+
 /// Type for debug info
 ///
 /// Example: `[[[str]]]` will be `TypeDebug { core_name: "str", array_level: 3 }`
 #[derive(PartialEq, Eq, Hash, Clone)]
+#[allow(dead_code)]
 struct TypeDebug {
     core_name: String,
     array_level: u32,
 }
 
 /// Represents a group of types for debug info
-///
-/// Example: `TypeDebug { core_name: "str", max_array_levell: 3 }` represents
-/// `str`, `[str]`, `[[str]]` and `[[[str]]]`.
+#[allow(dead_code)]
 struct TypeDebugRepresentive<'a> {
     core_name: &'a str,
     max_array_level: u32,
 }
 
+#[allow(dead_code)]
 impl TypeDebug {
     /// Construct a non-list type
     fn class_type(name: &str) -> TypeDebug {
@@ -105,37 +132,36 @@ impl std::fmt::Display for TypeDebug {
 
 // Variable info for debug info
 #[derive(Clone)]
+#[allow(dead_code)]
 struct VarDebug {
-    // Offset relative to some base address. The base address is
-    //  - for global variable: global section start.
-    //  - for local variable: rbp.
-    //  - for class attribute: object address.
     offset: i32,
-    line: u32, // Line number in source code that defines the variable
+    line: u32,
     name: String,
     var_type: TypeDebug,
 }
 
 // Relates machine code with source code
-struct LineMap {
-    code_pos: usize,  // Location in machine code
-    line_number: u32, // Line number in source code
+#[allow(dead_code)]
+pub(crate) struct LineMap {
+    pub(crate) code_pos: usize,
+    pub(crate) line_number: u32,
 }
 
 // Procedure info for debug info
-struct ProcedureDebug {
-    decl_line: u32,         // Line number is source code that defines the function
-    artificial: bool,       // true if the procedure is not defined in source code
-    parent: Option<String>, // Name of parent function
-    lines: Vec<LineMap>,    // Maps machine code and source code
+#[allow(dead_code)]
+pub(crate) struct ProcedureDebug {
+    pub(crate) decl_line: u32,
+    pub(crate) artificial: bool,
+    parent: Option<String>,
+    pub(crate) lines: Vec<LineMap>,
     return_type: TypeDebug,
     params: Vec<VarDebug>,
     locals: Vec<VarDebug>,
-    frame_size: u32, // Stack frame size, excluding saved ret and rbp.
+    frame_size: u32,
 }
 
 impl ProcedureDebug {
-    // Collect all types appeared in this function
+    #[allow(dead_code)]
     fn used_types(&self) -> impl Iterator<Item = &TypeDebug> {
         std::iter::once(&self.return_type)
             .chain(self.params.iter().map(|param| &param.var_type))
@@ -144,58 +170,65 @@ impl ProcedureDebug {
 }
 
 // Extra info for a chunk
-enum ChunkExtra {
-    Procedure(ProcedureDebug), // An executable chunk with debug info
-    Data { writable: bool },   // A data chunk that can be writable or read-only
+#[allow(dead_code)]
+pub(crate) enum ChunkExtra {
+    Procedure(ProcedureDebug),
+    Data { writable: bool },
 }
 
 // The target of a relocation
-enum ChunkLinkTarget {
-    Symbol(String, i32), // Relocation by symbol name and addend
-    Data(Vec<u8>),       // Create an ad hoc small chunk and make it the target
+#[allow(dead_code)]
+pub(crate) enum ChunkLinkTarget {
+    Symbol(String, i32),
+    Data(Vec<u8>),
 }
 
 // Relocation between chunks
-struct ChunkLink {
-    pos: usize, // Relocation source location
-    to: ChunkLinkTarget,
+#[allow(dead_code)]
+pub(crate) struct ChunkLink {
+    pub(crate) pos: usize,
+    pub(crate) to: ChunkLinkTarget,
 }
 
 // A piece of data with a symbol name
-struct Chunk {
-    name: String,          // Symbol name
-    code: Vec<u8>,         // Data content
-    links: Vec<ChunkLink>, // Relocations from this chunk
-    extra: ChunkExtra,
+#[allow(dead_code)]
+pub(crate) struct Chunk {
+    pub(crate) name: String,
+    pub(crate) code: Vec<u8>,
+    pub(crate) links: Vec<ChunkLink>,
+    pub(crate) extra: ChunkExtra,
 }
 
 // Relocation type for debug chunk
+#[allow(dead_code)]
 enum DebugChunkLinkType {
     Absolute,
-    // The types below are Windows-specific
     SectionRelative,
     SectionId,
     ImageRelative,
 }
 
 // Relocation between chunks, specifically when the source chunk is debug info
+#[allow(dead_code)]
 struct DebugChunkLink {
     link_type: DebugChunkLinkType,
-    pos: usize, // Source location
-    to: String, // Target symbol
-    size: u8,   // in bytes
+    pos: usize,
+    to: String,
+    size: u8,
 }
 
 // Chunk for debug info
+#[allow(dead_code)]
 struct DebugChunk {
-    name: String,               // Section name
-    code: Vec<u8>,              // Data content
-    links: Vec<DebugChunkLink>, // Relocations from this chunk
-    discardable: bool,          // true in general but false for exception handling info.
+    name: String,
+    code: Vec<u8>,
+    links: Vec<DebugChunkLink>,
+    discardable: bool,
 }
 
 // Method type info for debug info
 #[derive(Clone, PartialEq, Eq, Hash)]
+#[allow(dead_code)]
 struct MethodDebug {
     params: Vec<TypeDebug>,
     return_type: TypeDebug,
@@ -203,29 +236,31 @@ struct MethodDebug {
 
 // Class info for debug info
 #[derive(Clone)]
+#[allow(dead_code)]
 struct ClassDebug {
-    size: u32, // Object size, excluding the object header
+    size: u32,
     attributes: Vec<VarDebug>,
-    methods: BTreeMap<u32, (String, MethodDebug)>, // Map from prototype offset to (name, type)
+    methods: BTreeMap<u32, (String, MethodDebug)>,
 }
 
 impl ClassDebug {
-    // Collect all types appeared in this class
+    #[allow(dead_code)]
     fn used_types(&self) -> impl Iterator<Item = &TypeDebug> {
         self.attributes.iter().map(|attribute| &attribute.var_type)
     }
 }
 
 // The generated ChocoPy program, without linking to other libraries
-struct CodeSet {
-    chunks: Vec<Chunk>,
-    global_size: u64,             // Section size reserved for all global variables
-    globals_debug: Vec<VarDebug>, // Debug info for global variables
+#[allow(dead_code, private_interfaces)]
+pub struct CodeSet {
+    pub(crate) chunks: Vec<Chunk>,
+    global_size: u64,
+    globals_debug: Vec<VarDebug>,
     classes_debug: HashMap<String, ClassDebug>,
 }
 
 impl CodeSet {
-    // Collect all types appeared in the program
+    #[allow(dead_code)]
     fn used_types(&self) -> impl Iterator<Item = &TypeDebug> {
         self.chunks
             .iter()
@@ -245,9 +280,8 @@ impl CodeSet {
             )
     }
 
-    // Collects all types appeared in the program, and returns representives
-    // that have the highest array level.
-    fn used_types_representive(&self) -> impl Iterator<Item = TypeDebugRepresentive> {
+    #[allow(dead_code)]
+    fn used_types_representive(&self) -> impl Iterator<Item = TypeDebugRepresentive<'_>> {
         let mut array_level_map = HashMap::<&str, u32>::new();
         for type_used in self.used_types() {
             if let Some(array_level) = array_level_map.get_mut(type_used.core_name.as_str()) {
@@ -270,9 +304,17 @@ impl CodeSet {
     }
 }
 
+/// Generate machine code from a typed AST (public wrapper for WASM use)
+#[allow(dead_code, private_interfaces)]
+pub fn gen_code_set(ast: Program, platform: Platform) -> CodeSet {
+    x64::gen_code_set(ast, platform)
+}
+
+#[cfg(feature = "native")]
 #[derive(Debug)]
 struct ToolChainError;
 
+#[cfg(feature = "native")]
 impl std::fmt::Display for ToolChainError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
@@ -282,25 +324,27 @@ impl std::fmt::Display for ToolChainError {
     }
 }
 
+#[cfg(feature = "native")]
 impl std::error::Error for ToolChainError {}
 
+#[cfg(feature = "native")]
 #[derive(Debug)]
 pub struct PathError;
 
+#[cfg(feature = "native")]
 impl std::fmt::Display for PathError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "Illegal path")
     }
 }
 
+#[cfg(feature = "native")]
 impl std::error::Error for PathError {}
 
-// Encode path string for Windows command line argument
+#[cfg(feature = "native")]
 fn windows_path_escape(path: &Path) -> std::result::Result<String, Box<dyn std::error::Error>> {
     let path = path.to_str().ok_or(PathError)?;
 
-    // TODO: actually escape the path
-    // For now we just forbid suspicious strings.
     if path
         .find(|c| matches!(c, '\"' | '\'' | '^') || c.is_control())
         .is_some()
@@ -312,7 +356,7 @@ fn windows_path_escape(path: &Path) -> std::result::Result<String, Box<dyn std::
     Ok(path.to_owned())
 }
 
-// Generate object file
+#[cfg(feature = "native")]
 pub fn gen_object(
     source_path: &str,
     ast: Program,
@@ -327,7 +371,6 @@ pub fn gen_object(
         .flatten()
         .unwrap_or("");
 
-    // Debug section generator
     let mut debug: Box<dyn DebugWriter> = match platform {
         Platform::Windows => Box::new(codeview::Codeview::new(
             source_path,
@@ -352,10 +395,8 @@ pub fn gen_object(
         Platform::Macos => BinaryFormat::MachO,
     };
 
-    // Object file generator
     let mut obj = Object::new(binary_format, Architecture::X86_64, Endianness::Little);
 
-    // Import standard library functions
     let import_function = |obj: &mut Object, name: &str| {
         obj.add_symbol(Symbol {
             name: name.into(),
@@ -378,10 +419,8 @@ pub fn gen_object(
     import_function(&mut obj, BUILTIN_INPUT);
     import_function(&mut obj, BUILTIN_INIT);
 
-    // Generate machine code and debug info
     let code_set = x64::gen_code_set(ast, platform);
 
-    // Feed type/class debug info to debug section generator
     for t in code_set.used_types_representive() {
         debug.add_type(t);
     }
@@ -390,7 +429,6 @@ pub fn gen_object(
         debug.add_class(class_name, classes_debug);
     }
 
-    // Allocate section for global variables
     let bss_section = obj.section_id(StandardSection::UninitializedData);
 
     let global_symbol = obj.add_symbol(Symbol {
@@ -406,26 +444,20 @@ pub fn gen_object(
 
     obj.add_symbol_bss(global_symbol, bss_section, code_set.global_size, 8);
 
-    // Feed global variable debug info to debug section generator
     for global_debug in code_set.globals_debug {
         debug.add_global(global_debug);
     }
 
-    // Feed chunks to object file
-
-    // Map between section name and location for use in relocation later
     let mut section_map = HashMap::new();
 
-    // Sections that chunks can feed to
     let text_section = obj.section_id(StandardSection::Text);
     let data_section = obj.section_id(StandardSection::Data);
     let ro_section = obj.section_id(StandardSection::ReadOnlyData);
     let ro_reloc_section = obj.section_id(StandardSection::ReadOnlyDataWithRel);
 
     for chunk in &code_set.chunks {
-        debug.add_chunk(chunk); // Feed the chunk debug info to debug section generator
+        debug.add_chunk(chunk);
 
-        // Select section attributes for this chunk
         let section;
         let align;
         let kind;
@@ -448,7 +480,6 @@ pub fn gen_object(
             }
         }
 
-        // Only the entry point is exposed in linkage scope for linking with external entry point
         let scope = if chunk.name == BUILTIN_CHOCOPY_MAIN {
             SymbolScope::Linkage
         } else {
@@ -468,8 +499,6 @@ pub fn gen_object(
         });
         section_map.insert(&chunk.name, (section, offset));
     }
-
-    // Add relocations
 
     let mut data_id = 0;
 
@@ -529,8 +558,6 @@ pub fn gen_object(
         }
     }
 
-    // Finalize debug section generation and feed them to the object file
-
     let debug_chunks = debug.finalize();
     let mut debug_section_map = HashMap::new();
     for chunk in &debug_chunks {
@@ -547,8 +574,6 @@ pub fn gen_object(
         obj.append_section_data(section, &chunk.code, 8);
         debug_section_map.insert(chunk.name.clone(), section);
     }
-
-    // .. as well as their relocations
 
     for chunk in debug_chunks {
         for link in chunk.links {
@@ -575,21 +600,19 @@ pub fn gen_object(
         }
     }
 
-    // Output the object file
     let mut obj_file = std::fs::File::create(obj_path)?;
     obj_file.write_all(&obj.write()?)?;
 
     Ok(())
 }
 
-// Link the object file with libraries to produce an executable
+#[cfg(feature = "native")]
 pub fn link(
     obj_path: &Path,
     path: &str,
-    static_lib: bool, // prefer static library instead of dynamic library
+    static_lib: bool,
     platform: Platform,
 ) -> std::result::Result<(), Box<dyn std::error::Error>> {
-    // Find the standard library
     let lib_file = match platform {
         Platform::Windows => "chocopy_stdlib.lib",
         Platform::Linux | Platform::Macos => "libchocopy_stdlib.a",
@@ -598,7 +621,6 @@ pub fn link(
     let mut lib_path = std::env::current_exe()?;
     lib_path.set_file_name(lib_file);
 
-    // Invoke the linker
     let ld_output = match platform {
         Platform::Windows => {
             let vcvarsall = (|| -> Option<PathBuf> {
@@ -621,12 +643,6 @@ pub fn link(
                 "vcruntime.lib ucrt.lib msvcrt.lib"
             };
 
-            // We need to execute vcvarsall.bat, then link.exe with the
-            // inherited environment variables.
-            // However, the syntax for chained execution in `cmd` is not in the
-            // standard escaping format, and rust std::process::Command doesn't
-            // support it. To work around this, we make a temporary batch file
-            // with the commands we want, and execute that batch file.
             let batch_content = format!(
                 "@echo off
     call \"{}\" amd64
@@ -687,7 +703,7 @@ pub fn link(
     Ok(())
 }
 
-// Generates object file or executable
+#[cfg(feature = "native")]
 pub fn codegen(
     source_path: &str,
     ast: Program,

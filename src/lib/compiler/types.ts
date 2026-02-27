@@ -805,6 +805,44 @@ export interface CompileResult {
   hasErrors: boolean;
 }
 
+// ── Assembly Output ───────────────────────────────────────────────────────
+
+/**
+ * The complete disassembled output from the x86-64 code generator.
+ * Contains annotated assembly for each function in the program.
+ */
+export interface AssemblyOutput {
+  functions: AsmFunction[];
+}
+
+/**
+ * A single disassembled function with its instructions and metadata.
+ */
+export interface AsmFunction {
+  /** The symbol name of the function. */
+  name: string;
+  /** The source line where this function is declared, if available. */
+  sourceLine: number | null;
+  /** True if this function is compiler-generated (not user-defined). */
+  artificial: boolean;
+  /** The disassembled instructions in this function. */
+  instructions: AsmInstruction[];
+}
+
+/**
+ * A single disassembled x86-64 instruction with source mapping.
+ */
+export interface AsmInstruction {
+  /** Byte offset of this instruction within the function. */
+  offset: number;
+  /** Hex-encoded machine code bytes (e.g., "48 89 e5"). */
+  bytes: string;
+  /** Formatted assembly text (e.g., "mov rbp, rsp"). */
+  text: string;
+  /** Source line number this instruction corresponds to, if available. */
+  sourceLine: number | null;
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 /**

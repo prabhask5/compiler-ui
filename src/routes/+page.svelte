@@ -19,12 +19,12 @@
    * Keyboard shortcuts:
    * - Cmd/Ctrl+Enter       -- Compile
    * - Cmd/Ctrl+Shift+Enter -- Compile then Run
-   * - Cmd/Ctrl+1/2/3       -- Switch output tab (AST / Run / Docs)
+   * - Cmd/Ctrl+1/2/3/4     -- Switch output tab (AST / ASM / Run / Docs)
    */
   import { onMount } from 'svelte';
   import { initWasm, onStateChange, type WasmState } from '$lib/compiler/wasm-loader';
-  import { compile } from '$lib/compiler/compiler';
-  import type { CompileResult, CompilerError } from '$lib/compiler/types';
+  import { compile, generateAssembly } from '$lib/compiler/compiler';
+  import type { CompileResult, CompilerError, AssemblyOutput } from '$lib/compiler/types';
   import { examples } from '$lib/examples/programs';
   import Editor from '$lib/components/Editor.svelte';
   import Toolbar from '$lib/components/Toolbar.svelte';
@@ -45,7 +45,9 @@
   /** Result object from the most recent compilation, or null. */
   let result: CompileResult | null = $state(null);
   /** Currently active output panel tab. */
-  let activeTab: 'ast' | 'run' | 'docs' = $state('ast');
+  let activeTab: 'ast' | 'asm' | 'run' | 'docs' = $state('ast');
+  /** Assembly output from the most recent successful compile. */
+  let assembly: AssemblyOutput | null = $state(null);
   /** Horizontal split position as a percentage (editor width). */
   let splitPercent = $state(50);
   /** Source location to highlight in the editor, or null. */
@@ -71,6 +73,11 @@
 
   /** Errors enriched with human-readable commentary for the ErrorPanel. */
   let enrichedErrorList: EnrichedError[] = $state([]);
+
+  /** Source code split into lines for assembly annotations. */
+  const sourceLines = $derived(source.split('\n'));
+  /** The source line (1-based) currently highlighted, derived from highlightLoc. */
+  const highlightedSourceLine = $derived(highlightLoc ? highlightLoc[0] : null);
 
   function checkMobile() {
     isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
@@ -98,9 +105,9 @@
           doCompile();
         }
       }
-      if (mod && e.key >= '1' && e.key <= '3') {
+      if (mod && e.key >= '1' && e.key <= '4') {
         e.preventDefault();
-        const tabs: (typeof activeTab)[] = ['ast', 'run', 'docs'];
+        const tabs: (typeof activeTab)[] = ['ast', 'asm', 'run', 'docs'];
         activeTab = tabs[parseInt(e.key) - 1];
       }
     }
@@ -159,6 +166,7 @@
           result = r;
           errors = r.errors;
           enrichedErrorList = enrichErrors(r.errors, source);
+          assembly = r.hasErrors ? null : generateAssembly(source);
         }
         const elapsed = performance.now() - start;
         if (elapsed < MIN_COMPILE_MS) {
@@ -246,6 +254,7 @@
   function onSelectExample(index: number) {
     source = examples[index].code;
     result = null;
+    assembly = null;
     errors = [];
     consoleOutput = [];
     highlightLoc = null;
@@ -301,6 +310,19 @@
       highlightLoc = loc;
     }
   }
+
+  /**
+   * Handle a click on an assembly instruction. Sets the highlight to cover
+   * the entire source line so the editor, AST, and other ASM instructions
+   * on the same line all highlight together.
+   *
+   * @param sourceLine - The 1-based source line number.
+   */
+  function onInstructionClick(sourceLine: number) {
+    const lineText = sourceLines[sourceLine - 1] ?? '';
+    const endCol = lineText.length;
+    highlightLoc = [sourceLine, 1, sourceLine, endCol];
+  }
 </script>
 
 <div class="playground" class:mobile={isMobile}>
@@ -332,7 +354,17 @@
         </div>
       {:else}
         <div class="panel output-panel">
-          <OutputPanel {result} {activeTab} onTabChange={(t) => (activeTab = t)} {onNodeClick} />
+          <OutputPanel
+            {result}
+            {assembly}
+            {sourceLines}
+            {highlightedSourceLine}
+            {highlightLoc}
+            {activeTab}
+            onTabChange={(t) => (activeTab = t)}
+            {onNodeClick}
+            {onInstructionClick}
+          />
           {#if activeTab === 'run'}
             <Console
               output={consoleOutput}
@@ -392,7 +424,17 @@
       <Divider bind:splitPercent />
 
       <div class="panel output-panel" style="width: {100 - splitPercent}%">
-        <OutputPanel {result} {activeTab} onTabChange={(t) => (activeTab = t)} {onNodeClick} />
+        <OutputPanel
+          {result}
+          {assembly}
+          {sourceLines}
+          {highlightedSourceLine}
+          {highlightLoc}
+          {activeTab}
+          onTabChange={(t) => (activeTab = t)}
+          {onNodeClick}
+          {onInstructionClick}
+        />
         {#if activeTab === 'run'}
           <Console
             output={consoleOutput}

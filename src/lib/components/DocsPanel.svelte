@@ -42,6 +42,11 @@
           expression. Non-fatal errors are collected and reported with source locations. AST nodes
           use idiomatic Rust <code>struct</code>s and <code>enum</code>s with pattern matching
         </li>
+        <li>
+          <strong>Code Generator</strong> — Emits x86-64 machine code targeting the Linux ABI. The
+          assembly view disassembles the generated code using <code>iced-x86</code> with source line mappings
+          for bidirectional navigation
+        </li>
       </ul>
     </section>
 
@@ -51,7 +56,7 @@
       <ul>
         <li>
           The Rust compiler is compiled to <strong>WebAssembly</strong> via <code>wasm-pack</code> with
-          native-only dependencies feature-gated out — output is a ~155KB WASM binary
+          native-only dependencies feature-gated out — includes x86-64 code generation and disassembly
         </li>
         <li>
           WASM is loaded at runtime via a Blob URL strategy to avoid Vite/Rollup import resolution
@@ -76,6 +81,10 @@
         <li>
           <strong>Error commentary</strong> — Compiler errors include human-readable explanations that
           describe what went wrong and suggest fixes
+        </li>
+        <li>
+          <strong>Assembly view</strong> — x86-64 assembly output with syntax coloring, source line annotations,
+          and bidirectional highlighting between source, AST, and assembly
         </li>
         <li>
           <strong>URL sharing</strong> — Programs are compressed with LZ-string and encoded into the URL
@@ -114,8 +123,8 @@
           <span>Compile + Run</span>
         </div>
         <div class="shortcut-row">
-          <kbd>Cmd/Ctrl + 1/2/3</kbd>
-          <span>Switch output tabs (AST / Run / Docs)</span>
+          <kbd>Cmd/Ctrl + 1/2/3/4</kbd>
+          <span>Switch output tabs (AST / ASM / Run / Docs)</span>
         </div>
       </div>
     </section>

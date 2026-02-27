@@ -35,7 +35,7 @@ impl<F, V> LocalEnv<F, V> {
         LocalEnv(vec![base])
     }
 
-    pub fn get(&self, name: &str) -> Option<EnvSlot<F, V>> {
+    pub fn get(&self, name: &str) -> Option<EnvSlot<'_, F, V>> {
         match self.0.last().unwrap().get(name) {
             Some(LocalSlot::Var(t)) => Some(EnvSlot::Var(t, Assignable(true))),
             Some(LocalSlot::Func(t)) => Some(EnvSlot::Func(t)),
@@ -74,7 +74,7 @@ impl<F, V> LocalEnv<F, V> {
         }
     }
 
-    pub fn push(&mut self, frame: HashMap<String, LocalSlot<F, V>>) -> FrameHandle<F, V> {
+    pub fn push(&mut self, frame: HashMap<String, LocalSlot<F, V>>) -> FrameHandle<'_, F, V> {
         self.0.push(frame);
         FrameHandle(self)
     }
