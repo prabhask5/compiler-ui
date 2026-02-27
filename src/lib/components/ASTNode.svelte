@@ -91,13 +91,23 @@
   /** Whether this node should show green execution highlight (step-through mode). */
   const isExecHighlighted = $derived(isExecuting && isHighlighted);
 
-  /** Ref for the node header element for scroll-into-view. */
-  let headerEl: HTMLDivElement | undefined = $state(undefined);
+  /** Ref for the entire node element (header + children) for scroll-into-view. */
+  let nodeEl: HTMLDivElement | undefined = $state(undefined);
 
-  // Scroll highlighted node into view
+  // Scroll highlighted node into view with bottom padding
   $effect(() => {
-    if (isHighlighted && headerEl) {
-      headerEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    if (isHighlighted && nodeEl) {
+      const container = nodeEl.closest('.tree-content');
+      if (container) {
+        const containerRect = container.getBoundingClientRect();
+        const nodeRect = nodeEl.getBoundingClientRect();
+        // Check if any part of the node is outside the visible area
+        if (nodeRect.top < containerRect.top || nodeRect.bottom > containerRect.bottom - 60) {
+          // Scroll so the node top is visible with 60px padding below the node bottom
+          const scrollTop = container.scrollTop + nodeRect.top - containerRect.top - 40;
+          container.scrollTo({ top: Math.max(0, scrollTop), behavior: 'smooth' });
+        }
+      }
     }
   });
 
@@ -118,13 +128,12 @@
 </script>
 
 {#if obj && typeof obj === 'object'}
-  <div class="ast-node" style="--depth: {depth}; --color: {color}">
+  <div class="ast-node" style="--depth: {depth}; --color: {color}" bind:this={nodeEl}>
     <div
       class="node-header"
       class:expandable={hasChildren}
       class:highlighted={isHighlighted && !isExecHighlighted}
       class:exec-highlighted={isExecHighlighted}
-      bind:this={headerEl}
     >
       {#if hasChildren}
         <button class="expand-toggle" onclick={toggle}>

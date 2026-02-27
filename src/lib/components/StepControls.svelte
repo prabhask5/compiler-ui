@@ -60,8 +60,8 @@
 
   <div class="controls-center">
     <label class="speed-label">
-      <span class="speed-text">{speed.toFixed(1)}x</span>
-      <input type="range" min="0.5" max="4" step="0.5" bind:value={speed} class="speed-slider" />
+      <span class="speed-text">{speed < 1 ? speed.toFixed(2) : speed.toFixed(1)}x</span>
+      <input type="range" min="0.25" max="4" step="0.25" bind:value={speed} class="speed-slider" />
     </label>
   </div>
 

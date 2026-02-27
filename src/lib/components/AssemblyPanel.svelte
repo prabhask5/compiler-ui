@@ -72,6 +72,28 @@
 
   /** Filter out artificial (compiler-generated) functions for cleaner display. */
   const userFunctions = $derived(assembly.functions.filter((f) => !f.artificial));
+
+  /** Ref for the scrollable content container. */
+  let contentEl: HTMLDivElement | undefined = $state(undefined);
+
+  // Scroll the first highlighted instruction into view during stepping
+  $effect(() => {
+    if (highlightedSourceLine !== null && contentEl) {
+      // Wait a tick for the DOM to update with highlight classes
+      requestAnimationFrame(() => {
+        const cls = isExecuting ? '.exec-highlighted' : '.highlighted';
+        const el = contentEl?.querySelector(cls);
+        if (el && contentEl) {
+          const containerRect = contentEl.getBoundingClientRect();
+          const elRect = el.getBoundingClientRect();
+          if (elRect.top < containerRect.top || elRect.bottom > containerRect.bottom - 60) {
+            const scrollTop = contentEl.scrollTop + elRect.top - containerRect.top - 40;
+            contentEl.scrollTo({ top: Math.max(0, scrollTop), behavior: 'smooth' });
+          }
+        }
+      });
+    }
+  });
 </script>
 
 <div class="asm-panel">
@@ -81,7 +103,7 @@
       >{userFunctions.length} function{userFunctions.length !== 1 ? 's' : ''}</span
     >
   </div>
-  <div class="asm-content">
+  <div class="asm-content" bind:this={contentEl}>
     {#each userFunctions as func (func.name)}
       <div class="asm-function">
         <div class="func-header">; ===== {func.name} =====</div>

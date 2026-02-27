@@ -20,6 +20,7 @@
     onCompile,
     onRun,
     onStep,
+    onStopStep,
     onSelectExample,
     onShare
   }: {
@@ -37,6 +38,8 @@
     onRun: () => void;
     /** Start step-through execution. */
     onStep?: () => void;
+    /** Stop step-through execution. */
+    onStopStep?: () => void;
     onSelectExample: (index: number) => void;
     onShare: () => void;
   } = $props();
@@ -182,10 +185,10 @@
         class="btn btn-step"
         class:stepping={isStepping}
         disabled={wasmState !== 'ready' || (isRunning && !isStepping) || hasErrors}
-        onclick={onStep}
+        onclick={isStepping && onStopStep ? onStopStep : onStep}
       >
         {#if isStepping}
-          Stepping…
+          Stop
         {:else}
           Step
         {/if}

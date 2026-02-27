@@ -142,10 +142,10 @@
       }
       if (e.key === 'F10') {
         e.preventDefault();
-        if (isStepping) {
-          stepForward();
-        } else {
+        if (!isStepping) {
           doStep();
+        } else if (stepResolver) {
+          stepForward();
         }
       }
       if (e.key === 'Escape' && isStepping) {
@@ -532,6 +532,7 @@
     onCompile={doCompile}
     onRun={doRun}
     onStep={doStep}
+    onStopStep={stopStepping}
     {onSelectExample}
     {onShare}
   />
