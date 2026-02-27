@@ -38,10 +38,13 @@
     interpret,
     StopExecution,
     type InterpreterOutput,
-    type StepEvent
+    type StepEvent,
+    type CallTrackingOptions,
+    type RecursionNode
   } from '$lib/interpreter/interpreter';
   import StepControls from '$lib/components/StepControls.svelte';
   import VariablesPanel from '$lib/components/VariablesPanel.svelte';
+  import RecursionTree from '$lib/components/RecursionTree.svelte';
   import { enrichErrors, type EnrichedError } from '$lib/utils/error-commentary';
   import { decompressFromEncodedURIComponent, compressToEncodedURIComponent } from 'lz-string';
 
@@ -98,6 +101,54 @@
 
   /** Errors enriched with human-readable commentary for the ErrorPanel. */
   let enrichedErrorList: EnrichedError[] = $state([]);
+
+  // --- Recursion tree state ---
+
+  /** Root nodes of the call tree (top-level function calls). */
+  let callTree: RecursionNode[] = $state([]);
+  /** Map from callId to node for fast lookups during tree construction. */
+  let callNodeMap = new Map<number, RecursionNode>();
+  /** The callId of the currently executing function call, or null. */
+  let activeCallId: number | null = $state(null);
+
+  /** Reset call tree state before a new run. */
+  function resetCallTree() {
+    callTree = [];
+    callNodeMap = new Map();
+    activeCallId = null;
+  }
+
+  /** Create call tracking callbacks that build the recursion tree. */
+  function makeCallTracking(): CallTrackingOptions {
+    return {
+      onCall(event) {
+        const node: RecursionNode = {
+          ...event,
+          returnValue: null,
+          children: [],
+          active: true
+        };
+        callNodeMap.set(event.callId, node);
+        if (event.parentCallId !== null) {
+          const parent = callNodeMap.get(event.parentCallId);
+          if (parent) parent.children = [...parent.children, node];
+        } else {
+          callTree = [...callTree, node];
+        }
+        activeCallId = event.callId;
+      },
+      onReturn(event) {
+        const node = callNodeMap.get(event.callId);
+        if (node) {
+          node.returnValue = event.returnValue;
+          node.active = false;
+        }
+        // Trigger reactivity by reassigning
+        callTree = [...callTree];
+        activeCallId = node?.parentCallId ?? null;
+      }
+    };
+  }
 
   /** Source code split into lines for assembly annotations. */
   const sourceLines = $derived(source.split('\n'));
@@ -235,25 +286,31 @@
     activeTab = 'run';
     if (isMobile) mobileView = 'output';
     consoleOutput = [];
+    resetCallTree();
     isRunning = true;
     waitingForInput = false;
     const start = performance.now();
 
     try {
-      await interpret(result.typedAst, {
-        onOutput(text: string) {
-          consoleOutput = [...consoleOutput, { kind: 'output', text }];
+      await interpret(
+        result.typedAst,
+        {
+          onOutput(text: string) {
+            consoleOutput = [...consoleOutput, { kind: 'output', text }];
+          },
+          async onInput(): Promise<string> {
+            waitingForInput = true;
+            return new Promise<string>((resolve) => {
+              inputResolver = resolve;
+            });
+          },
+          onError(message: string, location?: [number, number, number, number]) {
+            consoleOutput = [...consoleOutput, { kind: 'error', text: message, location }];
+          }
         },
-        async onInput(): Promise<string> {
-          waitingForInput = true;
-          return new Promise<string>((resolve) => {
-            inputResolver = resolve;
-          });
-        },
-        onError(message: string, location?: [number, number, number, number]) {
-          consoleOutput = [...consoleOutput, { kind: 'error', text: message, location }];
-        }
-      });
+        undefined,
+        makeCallTracking()
+      );
       runTime = performance.now() - start;
       consoleOutput = [
         ...consoleOutput,
@@ -270,6 +327,8 @@
       }
       isRunning = false;
       waitingForInput = false;
+      callNodeMap.clear();
+      activeCallId = null;
     }
   }
 
@@ -283,6 +342,7 @@
     activeTab = 'run';
     if (isMobile) mobileView = 'output';
     consoleOutput = [];
+    resetCallTree();
     isRunning = true;
     isStepping = true;
     isPlaying = false;
@@ -320,7 +380,8 @@
               }
             });
           }
-        }
+        },
+        makeCallTracking()
       );
       runTime = performance.now() - start;
       consoleOutput = [
@@ -341,6 +402,8 @@
       stepResolver = null;
       stepRejecter = null;
       waitingForInput = false;
+      callNodeMap.clear();
+      activeCallId = null;
       if (playTimeoutId !== null) {
         clearTimeout(playTimeoutId);
         playTimeoutId = null;
@@ -585,6 +648,9 @@
                 currentFunction={stepInfo.currentFunction}
               />
             {/if}
+            {#if callTree.length > 0}
+              <RecursionTree nodes={callTree} {activeCallId} />
+            {/if}
             <Console
               output={consoleOutput}
               {isRunning}
@@ -673,6 +739,9 @@
               callDepth={stepInfo.callDepth}
               currentFunction={stepInfo.currentFunction}
             />
+          {/if}
+          {#if callTree.length > 0}
+            <RecursionTree nodes={callTree} {activeCallId} />
           {/if}
           <Console
             output={consoleOutput}

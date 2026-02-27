@@ -95,6 +95,11 @@
           real time. The "Visualize Type Propagation" button in the AST tab replays a bottom-up animation
           showing how types are inferred from leaf expressions to their parents
         </li>
+        <li>
+          <strong>Recursion tree</strong> — During step-through execution, function calls are visualized
+          as an animated tree. Watch recursive calls grow downward with their arguments, then see return
+          values propagate back up
+        </li>
       </ul>
     </section>
 

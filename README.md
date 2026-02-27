@@ -14,6 +14,7 @@ For compiler internals (lexer, parser, type checker, code generator), see [typed
 - **Type Propagation Visualization** — Animated replay of bottom-up type inference across the AST, showing how literal types flow upward through expressions
 - **Bidirectional Highlighting** — Click any source line, AST node, or assembly instruction to highlight corresponding regions across all panels
 - **Step-Through Execution** — Statement-by-statement debugger with synchronized green execution cursor across editor, AST, and assembly panels; live variables panel with change tracking; auto-play with adjustable speed (0.5x–4x)
+- **Recursion Tree Visualization** — Animated call tree during step-through execution showing recursive call structure with arguments and return values propagating in real time
 - **Human-Readable Error Commentary** — Compiler errors include explanations that describe what went wrong and suggest fixes
 - **TypeScript Tree-Walking Interpreter** — Run programs in-browser with runtime error detection and source location tracking
 - **URL Sharing** — Share programs via LZ-string compressed URL hash; recipients see code, compilation result, and output automatically

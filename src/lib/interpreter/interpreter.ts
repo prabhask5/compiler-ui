@@ -90,6 +90,37 @@ export interface StepModeOptions {
   onStep: (event: StepEvent) => Promise<void>;
 }
 
+/** Event emitted when a user-defined function is called. */
+export interface CallEvent {
+  callId: number;
+  parentCallId: number | null;
+  functionName: string;
+  args: Array<{ name: string; value: string }>;
+}
+
+/** Event emitted when a user-defined function returns. */
+export interface ReturnEvent {
+  callId: number;
+  returnValue: string;
+}
+
+/** Options for tracking function call/return events. */
+export interface CallTrackingOptions {
+  onCall?: (event: CallEvent) => void;
+  onReturn?: (event: ReturnEvent) => void;
+}
+
+/** A node in the recursion tree built from call/return events. */
+export interface RecursionNode {
+  callId: number;
+  parentCallId: number | null;
+  functionName: string;
+  args: Array<{ name: string; value: string }>;
+  returnValue: string | null;
+  children: RecursionNode[];
+  active: boolean;
+}
+
 /**
  * Thrown to abort step-through execution when the user clicks Stop.
  * Caught in the interpreter's top-level try/catch to cleanly exit.
@@ -182,13 +213,18 @@ interface ClassInfo {
 export async function interpret(
   program: Program,
   io: IOHandler,
-  stepMode?: StepModeOptions
+  stepMode?: StepModeOptions,
+  callTracking?: CallTrackingOptions
 ): Promise<void> {
   const env = new Environment();
   let steps = 0;
   let stmtStepCount = 0;
   let callDepth = 0;
   let currentFunction: string | null = null;
+
+  // Call tracking state
+  let callIdCounter = 0;
+  const callIdStack: number[] = [];
 
   // Build class registry
   const classes = new Map<string, ClassInfo>();
@@ -819,6 +855,21 @@ export async function interpret(
     const prevFunction = currentFunction;
     currentFunction = func.name.name;
 
+    const callId = callIdCounter++;
+    const parentCallId = callIdStack.length > 0 ? callIdStack[callIdStack.length - 1] : null;
+    callIdStack.push(callId);
+
+    callTracking?.onCall?.({
+      callId,
+      parentCallId,
+      functionName: func.name.name,
+      args: func.params.map((p, i) => ({
+        name: p.identifier.name,
+        value: displayValueTruncated(args[i] ?? noneVal())
+      }))
+    });
+
+    let returnVal: Value = noneVal();
     try {
       // Process declarations first
       for (const decl of func.declarations) {
@@ -844,13 +895,19 @@ export async function interpret(
         await execStmt(stmt);
       }
 
-      return noneVal();
+      return returnVal;
     } catch (e) {
       if (e instanceof ReturnSignal) {
-        return e.value;
+        returnVal = e.value;
+        return returnVal;
       }
       throw e;
     } finally {
+      callTracking?.onReturn?.({
+        callId,
+        returnValue: displayValueTruncated(returnVal)
+      });
+      callIdStack.pop();
       callDepth--;
       currentFunction = prevFunction;
       // Clean up nested function registrations

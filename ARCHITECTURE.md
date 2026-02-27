@@ -107,7 +107,8 @@ The interpreter supports an optional step mode (`StepModeOptions`) that pauses a
 - **Pause mechanism** — `stmtStep()` returns a Promise that the host resolves to advance. The host UI stores the resolve/reject callbacks; clicking Step Forward resolves, clicking Stop rejects with `StopExecution`.
 - **Call tracking** — `callFuncDef()` increments/decrements `callDepth` and saves/restores `currentFunction` with try/finally.
 - **Auto-play** — The host schedules `setTimeout` at `500ms / speed` to auto-resolve the step promise.
-- **Zero overhead** — When `stepMode` is not provided, `stmtStep()` returns immediately. Normal Run is completely unchanged.
+- **Call tracking** — `interpret()` accepts an optional `CallTrackingOptions` parameter (independent of step mode) with `onCall`/`onReturn` hooks. `callFuncDef()` emits `CallEvent` on entry and `ReturnEvent` on exit, enabling the `RecursionTree` component to build an animated call tree during both normal Run and step-through execution.
+- **Zero overhead** — When `stepMode` is not provided, `stmtStep()` returns immediately. When `callTracking` is not provided, the call/return hooks are no-ops.
 
 ### Safety
 
@@ -147,6 +148,7 @@ CSS custom properties define the entire visual language:
     │   ├── DocsPanel (documentation)
     │   ├── StepControls (stop/step/play/pause/speed — shown during stepping)
     │   ├── VariablesPanel (live variable display — shown during stepping)
+    │   ├── RecursionTree (animated call tree — shown when functions are called)
     │   └── Console (execution output)
     └── ErrorPanel (error list)
 ```
