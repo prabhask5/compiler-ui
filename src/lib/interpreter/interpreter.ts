@@ -24,7 +24,17 @@
 
 import type { Program, Declaration, Stmt, ExprNode, FuncDef, ClassDef } from '$lib/compiler/types';
 import type { Value } from './values';
-import { intVal, boolVal, strVal, noneVal, listVal, objectVal, isTruthy, isNone } from './values';
+import {
+  intVal,
+  boolVal,
+  strVal,
+  noneVal,
+  listVal,
+  objectVal,
+  isTruthy,
+  isNone,
+  displayValue
+} from './values';
 import { Environment } from './environment';
 import { builtinPrint, builtinInput, builtinLen, type IOHandler } from './builtins';
 
@@ -49,6 +59,45 @@ export interface InterpreterOutput {
    * for error highlighting in the editor.
    */
   location?: [number, number, number, number];
+}
+
+/**
+ * Event emitted at each statement during step-through execution.
+ * Contains the current execution context for the UI to display.
+ */
+export interface StepEvent {
+  /** Monotonically increasing step counter. */
+  stepNumber: number;
+  /** AST node kind being executed (e.g. "AssignStmt"). */
+  kind: string;
+  /** Source location [startLine, startCol, endLine, endCol], or null. */
+  location: [number, number, number, number] | null;
+  /** Snapshot of all visible variables as name → display string pairs. */
+  variables: Map<string, string>;
+  /** Current function call nesting depth (0 = top-level). */
+  callDepth: number;
+  /** Name of the currently executing function, or null for top-level. */
+  currentFunction: string | null;
+}
+
+/**
+ * Options for step-through execution mode.
+ * When provided to {@link interpret}, execution pauses at each statement
+ * and awaits the `onStep` callback's returned Promise before continuing.
+ */
+export interface StepModeOptions {
+  /** Called at each statement. Resolve the returned Promise to advance. */
+  onStep: (event: StepEvent) => Promise<void>;
+}
+
+/**
+ * Thrown to abort step-through execution when the user clicks Stop.
+ * Caught in the interpreter's top-level try/catch to cleanly exit.
+ */
+export class StopExecution extends Error {
+  constructor() {
+    super('Execution stopped by user');
+  }
 }
 
 /**
@@ -130,9 +179,16 @@ interface ClassInfo {
  * @throws Re-throws unexpected (non-runtime) errors. {@link RuntimeError} instances
  *   are caught and reported via `io.onError`.
  */
-export async function interpret(program: Program, io: IOHandler): Promise<void> {
+export async function interpret(
+  program: Program,
+  io: IOHandler,
+  stepMode?: StepModeOptions
+): Promise<void> {
   const env = new Environment();
   let steps = 0;
+  let stmtStepCount = 0;
+  let callDepth = 0;
+  let currentFunction: string | null = null;
 
   // Build class registry
   const classes = new Map<string, ClassInfo>();
@@ -157,6 +213,30 @@ export async function interpret(program: Program, io: IOHandler): Promise<void> 
     }
   }
 
+  /**
+   * Pauses execution at a statement boundary when step mode is active.
+   * Snapshots visible variables and awaits the host's "continue" signal.
+   */
+  async function stmtStep(stmt: {
+    kind: string;
+    location?: [number, number, number, number];
+  }): Promise<void> {
+    if (!stepMode) return;
+    stmtStepCount++;
+    const varSnapshot = new Map<string, string>();
+    for (const [name, val] of env.snapshotVariables(cloneValue)) {
+      varSnapshot.set(name, displayValue(val));
+    }
+    await stepMode.onStep({
+      stepNumber: stmtStepCount,
+      kind: stmt.kind,
+      location: stmt.location ?? null,
+      variables: varSnapshot,
+      callDepth,
+      currentFunction
+    });
+  }
+
   // Phase 1: Register all declarations
   for (const decl of program.declarations) {
     if (decl.kind === 'ClassDef') {
@@ -175,7 +255,9 @@ export async function interpret(program: Program, io: IOHandler): Promise<void> 
       await execStmt(stmt);
     }
   } catch (e) {
-    if (e instanceof ReturnSignal) {
+    if (e instanceof StopExecution) {
+      return;
+    } else if (e instanceof ReturnSignal) {
       // Top-level return — ignore
     } else if (e instanceof RuntimeError) {
       io.onError(e.message, e.location);
@@ -266,6 +348,7 @@ export async function interpret(program: Program, io: IOHandler): Promise<void> 
    */
   async function execStmt(stmt: Stmt): Promise<void> {
     step();
+    await stmtStep(stmt);
     switch (stmt.kind) {
       case 'ExprStmt':
         await evalExpr(stmt.expr);
@@ -735,6 +818,9 @@ export async function interpret(program: Program, io: IOHandler): Promise<void> 
    */
   async function callFuncDef(func: FuncDef, args: Value[]): Promise<Value> {
     env.pushFrame();
+    callDepth++;
+    const prevFunction = currentFunction;
+    currentFunction = func.name.name;
 
     try {
       // Process declarations first
@@ -768,6 +854,8 @@ export async function interpret(program: Program, io: IOHandler): Promise<void> 
       }
       throw e;
     } finally {
+      callDepth--;
+      currentFunction = prevFunction;
       // Clean up nested function registrations
       for (const decl of func.declarations) {
         if (decl.kind === 'FuncDef') {

@@ -199,4 +199,15 @@
     color: var(--accent);
     animation: fadeIn 200ms var(--ease) both;
   }
+
+  @media (max-width: 767px) {
+    .error-item {
+      gap: var(--space-sm);
+      padding: var(--space-sm) var(--space-md);
+    }
+
+    .commentary {
+      padding-left: var(--space-lg);
+    }
+  }
 </style>

@@ -99,6 +99,16 @@ The TypeScript interpreter (`src/lib/interpreter/`) executes typed AST JSON dire
 | `input()` | Returns a Promise that resolves when user submits input |
 | `len(x)` | Returns string or list length |
 
+### Step-Through Execution
+
+The interpreter supports an optional step mode (`StepModeOptions`) that pauses at each statement boundary:
+
+- **`stmtStep()`** — Called after `step()` in `execStmt()`. When step mode is active, snapshots all visible variables via `env.snapshotVariables()`, converts them to display strings, and emits a `StepEvent` with the current AST node kind, source location, variable state, call depth, and function name.
+- **Pause mechanism** — `stmtStep()` returns a Promise that the host resolves to advance. The host UI stores the resolve/reject callbacks; clicking Step Forward resolves, clicking Stop rejects with `StopExecution`.
+- **Call tracking** — `callFuncDef()` increments/decrements `callDepth` and saves/restores `currentFunction` with try/finally.
+- **Auto-play** — The host schedules `setTimeout` at `500ms / speed` to auto-resolve the step promise.
+- **Zero overhead** — When `stepMode` is not provided, `stmtStep()` returns immediately. Normal Run is completely unchanged.
+
 ### Safety
 
 - Step counter: max 1,000,000 operations before throwing
@@ -128,13 +138,15 @@ CSS custom properties define the entire visual language:
 ```
 +layout.svelte
 └── +page.svelte (main playground)
-    ├── Toolbar (header bar, examples, compile/run buttons)
-    ├── Editor (CodeMirror 6 wrapper)
+    ├── Toolbar (header bar, examples, compile/run/step buttons)
+    ├── Editor (CodeMirror 6 wrapper, highlight + execution cursor fields)
     ├── Divider (resizable split handle)
     ├── OutputPanel (tab container)
-    │   ├── ASTTree → ASTNode (recursive tree)
-    │   ├── AssemblyPanel (x86-64 disassembly)
+    │   ├── ASTTree → ASTNode (recursive tree, exec-highlighted support)
+    │   ├── AssemblyPanel (x86-64 disassembly, exec-highlighted support)
     │   ├── DocsPanel (documentation)
+    │   ├── StepControls (stop/step/play/pause/speed — shown during stepping)
+    │   ├── VariablesPanel (live variable display — shown during stepping)
     │   └── Console (execution output)
     └── ErrorPanel (error list)
 ```

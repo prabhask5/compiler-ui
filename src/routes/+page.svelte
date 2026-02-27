@@ -20,6 +20,8 @@
    * - Cmd/Ctrl+Enter       -- Compile
    * - Cmd/Ctrl+Shift+Enter -- Compile then Run
    * - Cmd/Ctrl+1/2/3/4     -- Switch output tab (AST / ASM / Run / Docs)
+   * - F10                   -- Step forward (or start stepping if not already)
+   * - Escape                -- Stop stepping
    */
   import { onMount } from 'svelte';
   import { initWasm, onStateChange, type WasmState } from '$lib/compiler/wasm-loader';
@@ -32,7 +34,14 @@
   import ErrorPanel from '$lib/components/ErrorPanel.svelte';
   import Divider from '$lib/components/Divider.svelte';
   import Console from '$lib/components/Console.svelte';
-  import { interpret, type InterpreterOutput } from '$lib/interpreter/interpreter';
+  import {
+    interpret,
+    StopExecution,
+    type InterpreterOutput,
+    type StepEvent
+  } from '$lib/interpreter/interpreter';
+  import StepControls from '$lib/components/StepControls.svelte';
+  import VariablesPanel from '$lib/components/VariablesPanel.svelte';
   import { enrichErrors, type EnrichedError } from '$lib/utils/error-commentary';
   import { decompressFromEncodedURIComponent, compressToEncodedURIComponent } from 'lz-string';
 
@@ -71,6 +80,22 @@
   /** Which panel is visible on mobile (editor or output). */
   let mobileView: 'editor' | 'output' = $state('editor');
 
+  // --- Step-through execution state ---
+  /** True while step-through execution is active. */
+  let isStepping = $state(false);
+  /** True while auto-play is advancing steps. */
+  let isPlaying = $state(false);
+  /** Playback speed multiplier. */
+  let stepSpeed = $state(1);
+  /** Current step event data from the interpreter. */
+  let stepInfo: StepEvent | null = $state(null);
+  /** Resolve function for the current step pause. */
+  let stepResolver: (() => void) | null = null;
+  /** Reject function for the current step pause (used for StopExecution). */
+  let stepRejecter: ((e: Error) => void) | null = null;
+  /** Timeout ID for auto-play scheduling. */
+  let playTimeoutId: ReturnType<typeof setTimeout> | null = null;
+
   /** Errors enriched with human-readable commentary for the ErrorPanel. */
   let enrichedErrorList: EnrichedError[] = $state([]);
 
@@ -78,6 +103,11 @@
   const sourceLines = $derived(source.split('\n'));
   /** The source line (1-based) currently highlighted, derived from highlightLoc. */
   const highlightedSourceLine = $derived(highlightLoc ? highlightLoc[0] : null);
+  /** Execution cursor location for the editor (green highlight, separate from blue). */
+  const executionLoc = $derived.by(() => {
+    if (isStepping && stepInfo) return stepInfo.location;
+    return null;
+  });
 
   function checkMobile() {
     isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
@@ -109,6 +139,18 @@
         e.preventDefault();
         const tabs: (typeof activeTab)[] = ['ast', 'asm', 'run', 'docs'];
         activeTab = tabs[parseInt(e.key) - 1];
+      }
+      if (e.key === 'F10') {
+        e.preventDefault();
+        if (isStepping) {
+          stepForward();
+        } else {
+          doStep();
+        }
+      }
+      if (e.key === 'Escape' && isStepping) {
+        e.preventDefault();
+        stopStepping();
       }
     }
 
@@ -191,6 +233,7 @@
   async function doRun() {
     if (!result || result.hasErrors) return;
     activeTab = 'run';
+    if (isMobile) mobileView = 'output';
     consoleOutput = [];
     isRunning = true;
     waitingForInput = false;
@@ -231,6 +274,157 @@
   }
 
   /**
+   * Start step-through execution. Similar to doRun() but passes stepMode
+   * option to the interpreter, pausing at each statement.
+   */
+  async function doStep() {
+    if (isStepping) return;
+    if (!result || result.hasErrors) return;
+    activeTab = 'run';
+    if (isMobile) mobileView = 'output';
+    consoleOutput = [];
+    isRunning = true;
+    isStepping = true;
+    isPlaying = false;
+    stepInfo = null;
+    waitingForInput = false;
+    const start = performance.now();
+
+    try {
+      await interpret(
+        result.typedAst,
+        {
+          onOutput(text: string) {
+            consoleOutput = [...consoleOutput, { kind: 'output', text }];
+          },
+          async onInput(): Promise<string> {
+            waitingForInput = true;
+            return new Promise<string>((resolve) => {
+              inputResolver = resolve;
+            });
+          },
+          onError(message: string, location?: [number, number, number, number]) {
+            consoleOutput = [...consoleOutput, { kind: 'error', text: message, location }];
+          }
+        },
+        {
+          async onStep(event: StepEvent): Promise<void> {
+            stepInfo = event;
+            highlightLoc = event.location;
+            return new Promise<void>((resolve, reject) => {
+              stepResolver = resolve;
+              stepRejecter = reject;
+              // If auto-play is active, schedule the next step
+              if (isPlaying) {
+                scheduleNextStep();
+              }
+            });
+          }
+        }
+      );
+      runTime = performance.now() - start;
+      consoleOutput = [
+        ...consoleOutput,
+        { kind: 'status', text: `Completed in ${runTime.toFixed(1)}ms` }
+      ];
+    } catch (e) {
+      if (!(e instanceof StopExecution)) {
+        runTime = performance.now() - start;
+        const msg = e instanceof Error ? e.message : String(e);
+        consoleOutput = [...consoleOutput, { kind: 'error', text: msg }];
+      }
+    } finally {
+      isRunning = false;
+      isStepping = false;
+      isPlaying = false;
+      stepInfo = null;
+      stepResolver = null;
+      stepRejecter = null;
+      waitingForInput = false;
+      if (playTimeoutId !== null) {
+        clearTimeout(playTimeoutId);
+        playTimeoutId = null;
+      }
+    }
+  }
+
+  /** Advance one step in step-through execution. */
+  function stepForward() {
+    if (stepResolver) {
+      const resolve = stepResolver;
+      stepResolver = null;
+      stepRejecter = null;
+      resolve();
+    }
+  }
+
+  /** Stop step-through execution by rejecting with StopExecution. */
+  function stopStepping() {
+    if (playTimeoutId !== null) {
+      clearTimeout(playTimeoutId);
+      playTimeoutId = null;
+    }
+    isPlaying = false;
+    if (stepRejecter) {
+      const reject = stepRejecter;
+      stepResolver = null;
+      stepRejecter = null;
+      reject(new StopExecution());
+    }
+  }
+
+  /** Start auto-play: automatically advance steps at the current speed. */
+  function startPlaying() {
+    isPlaying = true;
+    scheduleNextStep();
+  }
+
+  /** Pause auto-play. */
+  function pausePlaying() {
+    isPlaying = false;
+    if (playTimeoutId !== null) {
+      clearTimeout(playTimeoutId);
+      playTimeoutId = null;
+    }
+  }
+
+  /** Schedule the next auto-play step after the speed-dependent delay. */
+  function scheduleNextStep() {
+    if (playTimeoutId !== null) {
+      clearTimeout(playTimeoutId);
+    }
+    playTimeoutId = setTimeout(() => {
+      playTimeoutId = null;
+      if (isPlaying && stepResolver) {
+        const resolve = stepResolver;
+        stepResolver = null;
+        stepRejecter = null;
+        resolve();
+      }
+    }, 500 / stepSpeed);
+  }
+
+  // Re-schedule on speed change during playback
+  $effect(() => {
+    if (isPlaying && stepResolver) {
+      // Accessing stepSpeed to create the dependency
+      const _speed = stepSpeed;
+      if (playTimeoutId !== null) {
+        clearTimeout(playTimeoutId);
+      }
+      playTimeoutId = setTimeout(() => {
+        playTimeoutId = null;
+        if (isPlaying && stepResolver) {
+          const resolve = stepResolver;
+          stepResolver = null;
+          stepRejecter = null;
+          resolve();
+        }
+      }, 500 / _speed);
+    }
+  });
+
+  /**
    * Resolve a pending interpreter `input()` call with the user's typed value.
    * Appends the input as an echo line in the console output.
    *
@@ -252,6 +446,7 @@
    * @param index - Index into the `examples` array.
    */
   function onSelectExample(index: number) {
+    if (isStepping) stopStepping();
     source = examples[index].code;
     result = null;
     assembly = null;
@@ -259,6 +454,8 @@
     consoleOutput = [];
     highlightLoc = null;
     enrichedErrorList = [];
+    isStepping = false;
+    stepInfo = null;
     doCompile();
   }
 
@@ -331,8 +528,10 @@
     {isCompiling}
     {isRunning}
     hasErrors={result?.hasErrors ?? false}
+    {isStepping}
     onCompile={doCompile}
     onRun={doRun}
+    onStep={doStep}
     {onSelectExample}
     {onShare}
   />
@@ -342,7 +541,7 @@
       {#if mobileView === 'editor'}
         <div class="panel editor-panel">
           {#if wasmState === 'ready'}
-            <Editor bind:source {highlightLoc} scrollToHighlight={true} {errors} />
+            <Editor bind:source {highlightLoc} scrollToHighlight={true} {errors} {executionLoc} />
           {:else}
             <div class="skeleton-editor">
               <div class="skeleton" style="width: 60%; height: 14px; margin: 12px 16px"></div>
@@ -364,8 +563,27 @@
             onTabChange={(t) => (activeTab = t)}
             {onNodeClick}
             {onInstructionClick}
+            isExecuting={isStepping}
           />
           {#if activeTab === 'run'}
+            {#if isStepping && stepInfo}
+              <StepControls
+                {isPlaying}
+                stepNumber={stepInfo.stepNumber}
+                callDepth={stepInfo.callDepth}
+                currentFunction={stepInfo.currentFunction}
+                bind:speed={stepSpeed}
+                onPlay={startPlaying}
+                onPause={pausePlaying}
+                onStepForward={stepForward}
+                onStop={stopStepping}
+              />
+              <VariablesPanel
+                variables={stepInfo.variables}
+                callDepth={stepInfo.callDepth}
+                currentFunction={stepInfo.currentFunction}
+              />
+            {/if}
             <Console
               output={consoleOutput}
               {isRunning}
@@ -404,7 +622,7 @@
     <div class="desktop-content">
       <div class="panel editor-panel" style="width: {splitPercent}%">
         {#if wasmState === 'ready'}
-          <Editor bind:source {highlightLoc} scrollToHighlight={true} {errors} />
+          <Editor bind:source {highlightLoc} scrollToHighlight={true} {errors} {executionLoc} />
         {:else if wasmState === 'loading'}
           <div class="skeleton-editor">
             <div class="skeleton" style="width: 60%; height: 14px; margin: 12px 16px"></div>
@@ -434,8 +652,27 @@
           onTabChange={(t) => (activeTab = t)}
           {onNodeClick}
           {onInstructionClick}
+          isExecuting={isStepping}
         />
         {#if activeTab === 'run'}
+          {#if isStepping && stepInfo}
+            <StepControls
+              {isPlaying}
+              stepNumber={stepInfo.stepNumber}
+              callDepth={stepInfo.callDepth}
+              currentFunction={stepInfo.currentFunction}
+              bind:speed={stepSpeed}
+              onPlay={startPlaying}
+              onPause={pausePlaying}
+              onStepForward={stepForward}
+              onStop={stopStepping}
+            />
+            <VariablesPanel
+              variables={stepInfo.variables}
+              callDepth={stepInfo.callDepth}
+              currentFunction={stepInfo.currentFunction}
+            />
+          {/if}
           <Console
             output={consoleOutput}
             {isRunning}

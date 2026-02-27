@@ -16,8 +16,10 @@
     isCompiling,
     isRunning,
     hasErrors,
+    isStepping = false,
     onCompile,
     onRun,
+    onStep,
     onSelectExample,
     onShare
   }: {
@@ -29,8 +31,12 @@
     isRunning: boolean;
     /** True when the last compile produced errors (disables Run). */
     hasErrors: boolean;
+    /** True while step-through execution is active. */
+    isStepping?: boolean;
     onCompile: () => void;
     onRun: () => void;
+    /** Start step-through execution. */
+    onStep?: () => void;
     onSelectExample: (index: number) => void;
     onShare: () => void;
   } = $props();
@@ -170,6 +176,22 @@
       {/if}
       <kbd>⌘⇧↵</kbd>
     </button>
+
+    {#if onStep}
+      <button
+        class="btn btn-step"
+        class:stepping={isStepping}
+        disabled={wasmState !== 'ready' || (isRunning && !isStepping) || hasErrors}
+        onclick={onStep}
+      >
+        {#if isStepping}
+          Stepping…
+        {:else}
+          Step
+        {/if}
+        <kbd>F10</kbd>
+      </button>
+    {/if}
   </div>
 </header>
 
@@ -290,6 +312,28 @@
 
   .btn-run:hover:not(:disabled) {
     background: var(--bg-card);
+  }
+
+  .btn-step {
+    background: var(--bg-hover);
+    color: var(--text-secondary);
+    min-width: 60px;
+    justify-content: center;
+  }
+
+  .btn-step:hover:not(:disabled) {
+    background: var(--bg-card);
+    color: var(--success);
+  }
+
+  .btn-step.stepping {
+    color: var(--success);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .btn-step.stepping {
+      animation: btnPulse 1.2s ease-in-out infinite;
+    }
   }
 
   kbd {
@@ -426,7 +470,23 @@
       font-size: 12px;
     }
 
+    .btn-compile {
+      min-width: unset;
+    }
+
+    .btn-run {
+      min-width: unset;
+    }
+
+    .btn-step {
+      min-width: unset;
+    }
+
     .share-btn {
+      display: none;
+    }
+
+    .github-btn {
       display: none;
     }
   }

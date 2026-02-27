@@ -12,7 +12,8 @@
     assembly,
     sourceLines,
     highlightedSourceLine,
-    onInstructionClick
+    onInstructionClick,
+    isExecuting = false
   }: {
     /** The disassembled assembly output from the compiler. */
     assembly: AssemblyOutput;
@@ -22,6 +23,8 @@
     highlightedSourceLine: number | null;
     /** Callback when user clicks an instruction with a source mapping. */
     onInstructionClick: (sourceLine: number) => void;
+    /** Whether step-through execution is active (uses green highlight). */
+    isExecuting?: boolean;
   } = $props();
 
   /**
@@ -97,7 +100,8 @@
 
           <button
             class="asm-line"
-            class:highlighted={isHighlighted}
+            class:highlighted={isHighlighted && !isExecuting}
+            class:exec-highlighted={isHighlighted && isExecuting}
             class:clickable={instr.sourceLine !== null}
             onclick={() => instr.sourceLine !== null && onInstructionClick(instr.sourceLine)}
           >
@@ -191,6 +195,17 @@
     box-shadow: inset 2px 0 0 var(--accent);
   }
 
+  .asm-line.exec-highlighted {
+    background: rgba(52, 211, 153, 0.12);
+    box-shadow: inset 2px 0 0 var(--success);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .asm-line.exec-highlighted {
+      animation: execPulse 1.5s ease-in-out infinite;
+    }
+  }
+
   .asm-offset {
     color: var(--text-muted);
     min-width: 36px;
@@ -234,5 +249,19 @@
 
   .asm-text :global(.asm-bracket) {
     color: var(--text-muted);
+  }
+
+  @media (max-width: 767px) {
+    .asm-bytes {
+      display: none;
+    }
+
+    .asm-offset {
+      min-width: 28px;
+    }
+
+    .asm-content {
+      font-size: 11px;
+    }
   }
 </style>

@@ -27,7 +27,8 @@
     activeTab,
     onTabChange,
     onNodeClick,
-    onInstructionClick
+    onInstructionClick,
+    isExecuting = false
   }: {
     /** The most recent compilation result, or null before first compile. */
     result: CompileResult | null;
@@ -47,6 +48,8 @@
     onNodeClick: (loc: [number, number, number, number]) => void;
     /** Callback when the user clicks an assembly instruction with a source mapping. */
     onInstructionClick: (sourceLine: number) => void;
+    /** Whether step-through execution is active (uses green highlight). */
+    isExecuting?: boolean;
   } = $props();
 
   /** Tab definitions rendered in the tab bar. */
@@ -72,7 +75,7 @@
       {#if activeTab === 'ast'}
         <div class="content-pane fade-in">
           {#if result}
-            <ASTTree ast={result.typedAst} {onNodeClick} {highlightLoc} />
+            <ASTTree ast={result.typedAst} {onNodeClick} {highlightLoc} {isExecuting} />
           {:else}
             <div class="empty-state">Compile to see the AST</div>
           {/if}
@@ -80,7 +83,13 @@
       {:else if activeTab === 'asm'}
         <div class="content-pane fade-in">
           {#if assembly}
-            <AssemblyPanel {assembly} {sourceLines} {highlightedSourceLine} {onInstructionClick} />
+            <AssemblyPanel
+              {assembly}
+              {sourceLines}
+              {highlightedSourceLine}
+              {onInstructionClick}
+              {isExecuting}
+            />
           {:else if result?.hasErrors}
             <div class="empty-state">Fix errors to see assembly</div>
           {:else}

@@ -46,7 +46,8 @@
     source = $bindable(''),
     highlightLoc,
     scrollToHighlight = false,
-    errors
+    errors,
+    executionLoc = null
   }: {
     /** Two-way bound Python source text displayed in the editor. */
     source: string;
@@ -56,6 +57,8 @@
     scrollToHighlight?: boolean;
     /** Compiler errors whose locations are underlined in the editor gutter. */
     errors: CompilerError[];
+    /** Execution cursor location during step-through mode, or null. */
+    executionLoc?: [number, number, number, number] | null;
   } = $props();
 
   /** DOM element that hosts the CodeMirror EditorView. */
@@ -69,6 +72,8 @@
   const setHighlight = StateEffect.define<{ from: number; to: number } | null>();
   /** Effect to replace the full set of error underline ranges. */
   const setErrors = StateEffect.define<{ from: number; to: number }[]>();
+  /** Effect to set or clear the execution cursor range (step-through mode). */
+  const setExecCursor = StateEffect.define<{ from: number; to: number } | null>();
 
   /**
    * StateField that manages the highlight decoration layer.
@@ -109,6 +114,29 @@
             .filter((r) => r.from < r.to)
             .map((r) => Decoration.mark({ class: 'cm-error-underline' }).range(r.from, r.to));
           return Decoration.set(marks, true);
+        }
+      }
+      if (tr.docChanged) return decos.map(tr.changes);
+      return decos;
+    },
+    provide: (f) => EditorView.decorations.from(f)
+  });
+
+  /**
+   * StateField that manages the execution cursor decoration layer (step-through mode).
+   * Parallel to highlightField but uses the green 'cm-exec-cursor' class.
+   */
+  const execCursorField = StateField.define<DecorationSet>({
+    create: () => Decoration.none,
+    update(decos, tr) {
+      for (const e of tr.effects) {
+        if (e.is(setExecCursor)) {
+          if (e.value) {
+            return Decoration.set([
+              Decoration.mark({ class: 'cm-exec-cursor' }).range(e.value.from, e.value.to)
+            ]);
+          }
+          return Decoration.none;
         }
       }
       if (tr.docChanged) return decos.map(tr.changes);
@@ -163,6 +191,7 @@
         keymap.of([...defaultKeymap, ...historyKeymap, ...searchKeymap, indentWithTab]),
         highlightField,
         errorField,
+        execCursorField,
         EditorView.updateListener.of((update) => {
           if (update.docChanged) {
             source = update.state.doc.toString();
@@ -237,6 +266,34 @@
         to: locToPosEnd(doc, e.location[2], e.location[3])
       }));
     view.dispatch({ effects: setErrors.of(ranges) });
+  });
+
+  // Sync execution cursor (step-through mode)
+  $effect(() => {
+    if (!view) return;
+    if (executionLoc) {
+      const doc = view.state.doc;
+      let from = locToPos(doc, executionLoc[0], executionLoc[1]);
+      let to = locToPosEnd(doc, executionLoc[2], executionLoc[3]);
+      if (from >= to) {
+        const row = executionLoc[0];
+        if (row >= 1 && row <= doc.lines) {
+          const line = doc.line(row);
+          from = line.from;
+          to = line.to;
+        }
+      }
+      if (from < to) {
+        view.dispatch({
+          effects: setExecCursor.of({ from, to }),
+          scrollIntoView: true
+        });
+      } else {
+        view.dispatch({ effects: setExecCursor.of(null) });
+      }
+    } else {
+      view.dispatch({ effects: setExecCursor.of(null) });
+    }
   });
 </script>
 

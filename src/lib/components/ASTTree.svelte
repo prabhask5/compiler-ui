@@ -13,7 +13,8 @@
   let {
     ast,
     onNodeClick,
-    highlightLoc
+    highlightLoc,
+    isExecuting = false
   }: {
     /** The root Program AST node produced by the compiler. */
     ast: Program;
@@ -21,6 +22,8 @@
     onNodeClick: (loc: [number, number, number, number]) => void;
     /** Source location currently highlighted for bidirectional sync. */
     highlightLoc: [number, number, number, number] | null;
+    /** Whether step-through execution is active (uses green highlight). */
+    isExecuting?: boolean;
   } = $props();
 
   /** Whether all tree nodes should currently be expanded. */
@@ -46,6 +49,7 @@
       {onNodeClick}
       forceExpand={expandAll}
       {highlightLoc}
+      {isExecuting}
     />
   </div>
 </div>

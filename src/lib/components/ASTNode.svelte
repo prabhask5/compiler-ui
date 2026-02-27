@@ -23,7 +23,8 @@
     depth,
     onNodeClick,
     forceExpand,
-    highlightLoc
+    highlightLoc,
+    isExecuting = false
   }: {
     /** The AST node object (or sub-object) to render. */
     node: unknown;
@@ -37,6 +38,8 @@
     forceExpand: boolean;
     /** Source location currently highlighted; matching nodes get visual emphasis. */
     highlightLoc: [number, number, number, number] | null;
+    /** Whether step-through execution is active (uses green highlight instead of blue). */
+    isExecuting?: boolean;
   } = $props();
 
   /** Whether this node's children are currently visible. */
@@ -85,6 +88,9 @@
       location[3] === highlightLoc[3]
   );
 
+  /** Whether this node should show green execution highlight (step-through mode). */
+  const isExecHighlighted = $derived(isExecuting && isHighlighted);
+
   /** Ref for the node header element for scroll-into-view. */
   let headerEl: HTMLDivElement | undefined = $state(undefined);
 
@@ -116,7 +122,8 @@
     <div
       class="node-header"
       class:expandable={hasChildren}
-      class:highlighted={isHighlighted}
+      class:highlighted={isHighlighted && !isExecHighlighted}
+      class:exec-highlighted={isExecHighlighted}
       bind:this={headerEl}
     >
       {#if hasChildren}
@@ -167,6 +174,7 @@
                     {onNodeClick}
                     {forceExpand}
                     {highlightLoc}
+                    {isExecuting}
                   />
                 {/each}
               </div>
@@ -178,6 +186,7 @@
                 {onNodeClick}
                 {forceExpand}
                 {highlightLoc}
+                {isExecuting}
               />
             {:else}
               <div class="leaf-value">
@@ -211,6 +220,17 @@
   .node-header.highlighted {
     background: rgba(99, 102, 241, 0.12);
     box-shadow: inset 2px 0 0 var(--accent);
+  }
+
+  .node-header.exec-highlighted {
+    background: rgba(52, 211, 153, 0.12);
+    box-shadow: inset 2px 0 0 var(--success);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .node-header.exec-highlighted {
+      animation: execPulse 1.5s ease-in-out infinite;
+    }
   }
 
   .expand-toggle {

@@ -94,6 +94,36 @@
     </section>
 
     <section class="docs-section">
+      <h2>Step-Through Execution</h2>
+      <p>
+        The <strong>Step</strong> button (or <kbd>F10</kbd>) starts a slow-motion debugger that
+        executes your program one statement at a time.
+      </p>
+      <ul>
+        <li>
+          <strong>Synchronized highlights</strong> — A green execution cursor highlights the current statement
+          across the editor, AST tree, and assembly panel simultaneously
+        </li>
+        <li>
+          <strong>Step controls</strong> — Stop, Step Forward, and Play/Pause buttons appear above the
+          console. Play auto-advances through statements at an adjustable speed (0.5x&ndash;4x)
+        </li>
+        <li>
+          <strong>Live variables</strong> — A variables panel shows every in-scope variable and its current
+          value. Changed values flash green; new variables fade in
+        </li>
+        <li>
+          <strong>Call tracking</strong> — The status bar shows the current step number, function name,
+          and call depth. Entering a function increments the depth; returning decrements it
+        </li>
+        <li>
+          <strong>Interactive input</strong> — Programs that call <code>input()</code> still pause for
+          user input during stepping
+        </li>
+      </ul>
+    </section>
+
+    <section class="docs-section">
       <h2>Error Handling</h2>
       <ul>
         <li><strong>Syntax errors</strong> — Reported with source line and column locations</li>
@@ -125,6 +155,14 @@
         <div class="shortcut-row">
           <kbd>Cmd/Ctrl + 1/2/3/4</kbd>
           <span>Switch output tabs (AST / ASM / Run / Docs)</span>
+        </div>
+        <div class="shortcut-row">
+          <kbd>F10</kbd>
+          <span>Step forward (or start stepping)</span>
+        </div>
+        <div class="shortcut-row">
+          <kbd>Escape</kbd>
+          <span>Stop step-through execution</span>
         </div>
       </div>
     </section>
@@ -254,5 +292,17 @@
     border-radius: 4px;
     color: var(--text);
     min-width: 180px;
+  }
+
+  @media (max-width: 767px) {
+    .shortcut-row {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 2px;
+    }
+
+    .shortcut-row kbd {
+      min-width: unset;
+    }
   }
 </style>

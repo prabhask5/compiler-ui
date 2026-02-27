@@ -311,6 +311,28 @@ button:disabled {
   border-bottom: 2px solid var(--accent);
 }
 
+/* Execution cursor (step-through mode) */
+.cm-exec-cursor {
+  background: rgba(52, 211, 153, 0.12);
+  border-bottom: 2px solid var(--success);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .cm-exec-cursor {
+    animation: execPulse 1.5s ease-in-out infinite;
+  }
+}
+
+@keyframes execPulse {
+  0%,
+  100% {
+    background: rgba(52, 211, 153, 0.12);
+  }
+  50% {
+    background: rgba(52, 211, 153, 0.22);
+  }
+}
+
 /* ── Mobile breakpoints ── */
 @media (max-width: 767px) {
   :root {

@@ -12,6 +12,7 @@ For compiler internals (lexer, parser, type checker, code generator), see [typed
 - **x86-64 Assembly View** — Syntax-colored disassembly with source line annotations and bidirectional highlighting between source, AST, and assembly
 - **Interactive Typed AST Visualization** — Color-coded tree view with collapsible nodes and inferred type badges on every expression
 - **Bidirectional Highlighting** — Click any source line, AST node, or assembly instruction to highlight corresponding regions across all panels
+- **Step-Through Execution** — Statement-by-statement debugger with synchronized green execution cursor across editor, AST, and assembly panels; live variables panel with change tracking; auto-play with adjustable speed (0.5x–4x)
 - **Human-Readable Error Commentary** — Compiler errors include explanations that describe what went wrong and suggest fixes
 - **TypeScript Tree-Walking Interpreter** — Run programs in-browser with runtime error detection and source location tracking
 - **URL Sharing** — Share programs via LZ-string compressed URL hash; recipients see code, compilation result, and output automatically
@@ -80,6 +81,8 @@ Output goes to `build/`. Serve statically or deploy to Vercel.
 | `Cmd/Ctrl + Enter` | Compile |
 | `Cmd/Ctrl + Shift + Enter` | Compile + Run |
 | `Cmd/Ctrl + 1/2/3/4` | Switch output tabs (AST / ASM / Run / Docs) |
+| `F10` | Step forward (or start stepping) |
+| `Escape` | Stop step-through execution |
 
 ## Project Structure
 
