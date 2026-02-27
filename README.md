@@ -11,6 +11,7 @@ For compiler internals (lexer, parser, type checker, code generator), see [typed
 - **Full Parsing + Type Checking via WebAssembly** — The Rust compiler runs client-side as a WASM binary
 - **x86-64 Assembly View** — Syntax-colored disassembly with source line annotations and bidirectional highlighting between source, AST, and assembly
 - **Interactive Typed AST Visualization** — Color-coded tree view with collapsible nodes and inferred type badges on every expression
+- **Type Propagation Visualization** — Animated replay of bottom-up type inference across the AST, showing how literal types flow upward through expressions
 - **Bidirectional Highlighting** — Click any source line, AST node, or assembly instruction to highlight corresponding regions across all panels
 - **Step-Through Execution** — Statement-by-statement debugger with synchronized green execution cursor across editor, AST, and assembly panels; live variables panel with change tracking; auto-play with adjustable speed (0.5x–4x)
 - **Human-Readable Error Commentary** — Compiler errors include explanations that describe what went wrong and suggest fixes

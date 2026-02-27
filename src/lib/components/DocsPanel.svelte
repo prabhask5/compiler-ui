@@ -90,6 +90,11 @@
           <strong>URL sharing</strong> — Programs are compressed with LZ-string and encoded into the URL
           hash. Shared links restore code, compilation result, and output
         </li>
+        <li>
+          <strong>Type propagation visualization</strong> — Watch the type checker annotate the AST in
+          real time. The "Visualize Type Propagation" button in the AST tab replays a bottom-up animation
+          showing how types are inferred from leaf expressions to their parents
+        </li>
       </ul>
     </section>
 

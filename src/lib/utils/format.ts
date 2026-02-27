@@ -164,6 +164,63 @@ export function getNodeChildren(node: Record<string, unknown>): NodeChild[] {
 }
 
 /**
+ * Collects all typed AST nodes in bottom-up (deepest-first) order.
+ *
+ * Walks the AST recursively, recording every node that has both an
+ * `inferredType` (truthy) and a `location` (4-element array). Nodes are
+ * sorted by depth descending (leaves first), with ties broken by source
+ * position (earlier in file first). This ordering simulates how a type
+ * checker infers types from literals/identifiers upward through expressions.
+ *
+ * @param root - The root AST node (typically a Program).
+ * @returns An array of location key strings (`location.join(',')`) in reveal order.
+ */
+export function collectTypedNodesBottomUp(root: unknown): string[] {
+  const entries: { locationKey: string; depth: number; pos: number }[] = [];
+
+  function walk(node: unknown, depth: number): void {
+    if (!node || typeof node !== 'object') return;
+
+    if (Array.isArray(node)) {
+      for (const item of node) walk(item, depth);
+      return;
+    }
+
+    const obj = node as Record<string, unknown>;
+
+    // Recurse into children first (same traversal as getNodeChildren)
+    for (const [key, value] of Object.entries(obj)) {
+      if (SKIP_FIELDS.has(key)) continue;
+      if (value === null || value === undefined) continue;
+      if (
+        SCALAR_FIELDS.has(key) &&
+        (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean')
+      ) {
+        continue;
+      }
+      walk(value, depth + 1);
+    }
+
+    // Record this node if it has type info and a location
+    const loc = obj.location as number[] | undefined;
+    if (obj.inferredType && Array.isArray(loc) && loc.length === 4) {
+      entries.push({
+        locationKey: loc.join(','),
+        depth,
+        pos: loc[0] * 10000 + loc[1]
+      });
+    }
+  }
+
+  walk(root, 0);
+
+  // Sort: deepest first, then by source position (earlier first)
+  entries.sort((a, b) => b.depth - a.depth || a.pos - b.pos);
+
+  return entries.map((e) => e.locationKey);
+}
+
+/**
  * Truncates a string to a maximum length, appending an ellipsis if needed.
  *
  * Used by {@link getNodeSummary} to keep inline labels from overflowing

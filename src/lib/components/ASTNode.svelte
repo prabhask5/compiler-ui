@@ -24,7 +24,9 @@
     onNodeClick,
     forceExpand,
     highlightLoc,
-    isExecuting = false
+    isExecuting = false,
+    typePropagationActive = false,
+    revealedTypes = new Set<string>()
   }: {
     /** The AST node object (or sub-object) to render. */
     node: unknown;
@@ -40,6 +42,10 @@
     highlightLoc: [number, number, number, number] | null;
     /** Whether step-through execution is active (uses green highlight instead of blue). */
     isExecuting?: boolean;
+    /** Whether type propagation animation is active (badges hidden until revealed). */
+    typePropagationActive?: boolean;
+    /** Set of location keys whose type badges have been revealed. */
+    revealedTypes?: Set<string>;
   } = $props();
 
   /** Whether this node's children are currently visible. */
@@ -91,6 +97,15 @@
   /** Whether this node should show green execution highlight (step-through mode). */
   const isExecHighlighted = $derived(isExecuting && isHighlighted);
 
+  /** Location key for matching against the revealed set during type propagation. */
+  const locationKey = $derived(location ? location.join(',') : '');
+  /** Whether the type badge should be visible (always true unless animation is hiding it). */
+  const showTypeBadge = $derived(
+    inferredType !== '' && (!typePropagationActive || revealedTypes.has(locationKey))
+  );
+  /** Whether this node's type was just revealed (for scale-in animation). */
+  const typeJustRevealed = $derived(typePropagationActive && revealedTypes.has(locationKey));
+
   /** Ref for the entire node element (header + children) for scroll-into-view. */
   let nodeEl: HTMLDivElement | undefined = $state(undefined);
 
@@ -134,6 +149,7 @@
       class:expandable={hasChildren}
       class:highlighted={isHighlighted && !isExecHighlighted}
       class:exec-highlighted={isExecHighlighted}
+      class:type-highlighted={typeJustRevealed}
     >
       {#if hasChildren}
         <button class="expand-toggle" onclick={toggle}>
@@ -160,7 +176,13 @@
           <span class="node-summary">{summary}</span>
         {/if}
         {#if inferredType}
-          <span class="type-badge">{inferredType}</span>
+          <span
+            class="type-badge"
+            class:type-hidden={!showTypeBadge}
+            class:type-revealed={typeJustRevealed}
+          >
+            {inferredType}
+          </span>
         {/if}
       </button>
     </div>
@@ -184,6 +206,8 @@
                     {forceExpand}
                     {highlightLoc}
                     {isExecuting}
+                    {typePropagationActive}
+                    {revealedTypes}
                   />
                 {/each}
               </div>
@@ -196,6 +220,8 @@
                 {forceExpand}
                 {highlightLoc}
                 {isExecuting}
+                {typePropagationActive}
+                {revealedTypes}
               />
             {:else}
               <div class="leaf-value">
@@ -312,6 +338,51 @@
     border-radius: 3px;
     font-weight: 500;
     white-space: nowrap;
+    transition:
+      opacity var(--duration-fast) var(--ease),
+      transform var(--duration-fast) var(--ease);
+  }
+
+  .type-badge.type-hidden {
+    opacity: 0;
+    transform: scale(0.7);
+    pointer-events: none;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .type-badge.type-revealed {
+      animation: typeReveal 400ms var(--ease) both;
+    }
+
+    .node-header.type-highlighted {
+      animation: typePulse 600ms var(--ease);
+    }
+  }
+
+  @keyframes typeReveal {
+    0% {
+      opacity: 0;
+      transform: scale(0.5);
+    }
+    60% {
+      opacity: 1;
+      transform: scale(1.15);
+    }
+    100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  @keyframes typePulse {
+    0% {
+      background: rgba(99, 102, 241, 0.25);
+      box-shadow: inset 2px 0 0 rgb(99, 102, 241);
+    }
+    100% {
+      background: transparent;
+      box-shadow: none;
+    }
   }
 
   .node-children {

@@ -142,7 +142,7 @@ CSS custom properties define the entire visual language:
     ├── Editor (CodeMirror 6 wrapper, highlight + execution cursor fields)
     ├── Divider (resizable split handle)
     ├── OutputPanel (tab container)
-    │   ├── ASTTree → ASTNode (recursive tree, exec-highlighted support)
+    │   ├── ASTTree → ASTNode (recursive tree, exec-highlighted + type propagation animation)
     │   ├── AssemblyPanel (x86-64 disassembly, exec-highlighted support)
     │   ├── DocsPanel (documentation)
     │   ├── StepControls (stop/step/play/pause/speed — shown during stepping)

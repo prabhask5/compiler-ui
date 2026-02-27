@@ -8,6 +8,7 @@
    * in unison.
    */
   import type { Program } from '$lib/compiler/types';
+  import { collectTypedNodesBottomUp } from '$lib/utils/format';
   import ASTNode from './ASTNode.svelte';
 
   let {
@@ -29,16 +30,80 @@
   /** Whether all tree nodes should currently be expanded. */
   let expandAll = $state(true);
 
+  /** Whether the type propagation animation is currently running. */
+  let isAnimatingTypes = $state(false);
+  /** Whether type badges should respect the reveal set (true = hide unrevealed badges). */
+  let typePropagationActive = $state(false);
+  /** Location keys of nodes whose type badges have been revealed so far. */
+  let revealedTypes: Set<string> = $state(new Set());
+  /** Interval ID for the animation timer, stored for cleanup. */
+  let animationIntervalId: ReturnType<typeof setInterval> | undefined;
+
   /** Toggle the global expand/collapse state for the entire tree. */
   function toggleAll() {
     expandAll = !expandAll;
   }
+
+  /** Stop any running type propagation animation and reset state. */
+  function stopAnimation() {
+    if (animationIntervalId !== undefined) {
+      clearInterval(animationIntervalId);
+      animationIntervalId = undefined;
+    }
+    isAnimatingTypes = false;
+    typePropagationActive = false;
+    revealedTypes = new Set();
+  }
+
+  /**
+   * Start the bottom-up type propagation animation.
+   * Expands all nodes, hides all type badges, then reveals them one by one
+   * from deepest (literals/identifiers) to shallowest (root expressions).
+   */
+  function startTypePropagation() {
+    if (isAnimatingTypes) return;
+
+    const keys = collectTypedNodesBottomUp(ast);
+    if (keys.length === 0) return;
+
+    expandAll = true;
+    typePropagationActive = true;
+    revealedTypes = new Set();
+    isAnimatingTypes = true;
+
+    let index = 0;
+    animationIntervalId = setInterval(() => {
+      if (index < keys.length) {
+        revealedTypes = new Set([...revealedTypes, keys[index]]);
+        index++;
+      } else {
+        clearInterval(animationIntervalId);
+        animationIntervalId = undefined;
+        isAnimatingTypes = false;
+        typePropagationActive = false;
+      }
+    }, 150);
+  }
+
+  // Clean up animation when AST changes or component unmounts
+  $effect(() => {
+    // Subscribe to ast so this re-runs when ast changes
+    void ast;
+    return () => stopAnimation();
+  });
 </script>
 
 <div class="ast-tree">
   <div class="tree-controls">
     <button class="control-btn" onclick={toggleAll}>
       {expandAll ? 'Collapse All' : 'Expand All'}
+    </button>
+    <button
+      class="control-btn type-propagation-btn"
+      onclick={startTypePropagation}
+      disabled={isAnimatingTypes}
+    >
+      Visualize Type Propagation
     </button>
   </div>
   <div class="tree-content">
@@ -50,6 +115,8 @@
       forceExpand={expandAll}
       {highlightLoc}
       {isExecuting}
+      {typePropagationActive}
+      {revealedTypes}
     />
   </div>
 </div>
@@ -79,14 +146,25 @@
     transition: background var(--duration-fast) var(--ease);
   }
 
-  .control-btn:hover {
+  .control-btn:hover:not(:disabled) {
     background: var(--bg-hover);
     color: var(--text);
+  }
+
+  .control-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
   }
 
   .tree-content {
     flex: 1;
     overflow: auto;
     padding: var(--space-sm);
+  }
+
+  @media (max-width: 767px) {
+    .type-propagation-btn {
+      font-size: 10px;
+    }
   }
 </style>
