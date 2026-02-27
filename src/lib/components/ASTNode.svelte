@@ -205,14 +205,19 @@
     {#if expanded && hasChildren}
       <div class="node-children">
         {#each children as child, i (child.key)}
-          <div class="child" style="animation-delay: {Math.min(i * 30, 300)}ms">
+          <div class="child" style="animation-delay: {i < 10 ? i * 30 : 0}ms">
             {#if Array.isArray(child.value)}
+              {@const maxArrayItems = 100}
+              {@const items =
+                child.value.length > maxArrayItems
+                  ? child.value.slice(0, maxArrayItems)
+                  : child.value}
               <div class="array-node">
                 <div class="array-header">
                   <span class="node-key">{child.key}</span>
                   <span class="array-count">[{child.value.length}]</span>
                 </div>
-                {#each child.value as item, j (j)}
+                {#each items as item, j (j)}
                   <ASTNode
                     node={item}
                     key={String(j)}
@@ -225,6 +230,15 @@
                     {revealedTypes}
                   />
                 {/each}
+                {#if child.value.length > maxArrayItems}
+                  <div class="array-truncated">
+                    …{child.value.length - maxArrayItems} more item{child.value.length -
+                      maxArrayItems !==
+                    1
+                      ? 's'
+                      : ''} not shown
+                  </div>
+                {/if}
               </div>
             {:else if typeof child.value === 'object' && child.value !== null}
               <ASTNode
@@ -424,6 +438,13 @@
   .array-count {
     color: var(--text-muted);
     font-size: 10px;
+  }
+
+  .array-truncated {
+    color: var(--text-muted);
+    font-size: 10px;
+    font-style: italic;
+    padding: 2px 0 2px 22px;
   }
 
   .leaf-value {

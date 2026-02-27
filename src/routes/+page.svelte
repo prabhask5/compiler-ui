@@ -104,17 +104,41 @@
 
   // --- Recursion tree state ---
 
-  /** Root nodes of the call tree (top-level function calls). */
-  let callTree: RecursionNode[] = $state([]);
-  /** Map from callId to node for fast lookups during tree construction. */
-  let callNodeMap = new Map<number, RecursionNode>();
+  /** Flat call record (source of truth — $state array for reactivity). */
+  interface CallRecord {
+    callId: number;
+    parentCallId: number | null;
+    functionName: string;
+    args: Array<{ name: string; value: string }>;
+    returnValue: string | null;
+    active: boolean;
+  }
+
+  /** Flat list of all call records, indexed by callId. */
+  let callRecords: CallRecord[] = $state([]);
   /** The callId of the currently executing function call, or null. */
   let activeCallId: number | null = $state(null);
 
+  /** Derive the tree structure from the flat records. */
+  const callTree: RecursionNode[] = $derived.by(() => {
+    const nodeMap = new Map<number, RecursionNode>();
+    const roots: RecursionNode[] = [];
+    for (const record of callRecords) {
+      const node: RecursionNode = { ...record, children: [] };
+      nodeMap.set(record.callId, node);
+      if (record.parentCallId !== null) {
+        const parent = nodeMap.get(record.parentCallId);
+        if (parent) parent.children.push(node);
+      } else {
+        roots.push(node);
+      }
+    }
+    return roots;
+  });
+
   /** Reset call tree state before a new run. */
   function resetCallTree() {
-    callTree = [];
-    callNodeMap = new Map();
+    callRecords = [];
     activeCallId = null;
   }
 
@@ -122,30 +146,19 @@
   function makeCallTracking(): CallTrackingOptions {
     return {
       onCall(event) {
-        const node: RecursionNode = {
+        callRecords.push({
           ...event,
           returnValue: null,
-          children: [],
           active: true
-        };
-        callNodeMap.set(event.callId, node);
-        if (event.parentCallId !== null) {
-          const parent = callNodeMap.get(event.parentCallId);
-          if (parent) parent.children = [...parent.children, node];
-        } else {
-          callTree = [...callTree, node];
-        }
+        });
         activeCallId = event.callId;
       },
       onReturn(event) {
-        const node = callNodeMap.get(event.callId);
-        if (node) {
-          node.returnValue = event.returnValue;
-          node.active = false;
+        const record = callRecords[event.callId];
+        if (record) {
+          callRecords[event.callId] = { ...record, returnValue: event.returnValue, active: false };
         }
-        // Trigger reactivity by reassigning
-        callTree = [...callTree];
-        activeCallId = node?.parentCallId ?? null;
+        activeCallId = record?.parentCallId ?? null;
       }
     };
   }
@@ -327,7 +340,6 @@
       }
       isRunning = false;
       waitingForInput = false;
-      callNodeMap.clear();
       activeCallId = null;
     }
   }
@@ -402,7 +414,6 @@
       stepResolver = null;
       stepRejecter = null;
       waitingForInput = false;
-      callNodeMap.clear();
       activeCallId = null;
       if (playTimeoutId !== null) {
         clearTimeout(playTimeoutId);
@@ -649,7 +660,7 @@
               />
             {/if}
             {#if callTree.length > 0}
-              <RecursionTree nodes={callTree} {activeCallId} />
+              <RecursionTree nodes={callTree} {activeCallId} totalCalls={callRecords.length} />
             {/if}
             <Console
               output={consoleOutput}
@@ -741,7 +752,7 @@
             />
           {/if}
           {#if callTree.length > 0}
-            <RecursionTree nodes={callTree} {activeCallId} />
+            <RecursionTree nodes={callTree} {activeCallId} totalCalls={callRecords.length} />
           {/if}
           <Console
             output={consoleOutput}

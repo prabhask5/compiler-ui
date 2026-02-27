@@ -71,18 +71,34 @@
     revealedTypes = new Set();
     isAnimatingTypes = true;
 
+    // Scale batch size and interval so the animation completes in ~30s max.
+    // Small trees (≤60 nodes): 1 node per 500ms (original behavior).
+    // Larger trees: batch multiple nodes per tick at a faster interval.
+    const MAX_DURATION_MS = 30_000;
+    const TARGET_TICKS = 60;
+    const batchSize = Math.max(1, Math.ceil(keys.length / TARGET_TICKS));
+    const interval = Math.min(
+      500,
+      Math.floor(MAX_DURATION_MS / Math.ceil(keys.length / batchSize))
+    );
+
     let index = 0;
     animationIntervalId = setInterval(() => {
       if (index < keys.length) {
-        revealedTypes = new Set([...revealedTypes, keys[index]]);
-        index++;
+        const next = new Set(revealedTypes);
+        const end = Math.min(index + batchSize, keys.length);
+        for (let i = index; i < end; i++) {
+          next.add(keys[i]);
+        }
+        revealedTypes = next;
+        index = end;
       } else {
         clearInterval(animationIntervalId);
         animationIntervalId = undefined;
         isAnimatingTypes = false;
         typePropagationActive = false;
       }
-    }, 500);
+    }, interval);
   }
 
   // Clean up animation when AST changes or component unmounts

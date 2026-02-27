@@ -31,12 +31,20 @@
     onErrorClick: (loc: [number, number, number, number]) => void;
   } = $props();
 
+  /** Maximum output lines rendered; older lines are discarded from the DOM. */
+  const MAX_LINES = 5000;
+
   /** Scrollable container element; used for auto-scrolling to latest output. */
   let scrollEl: HTMLDivElement = $state(null!);
   /** The text input element shown when the program requests user input. */
   let inputEl: HTMLInputElement = $state(null!);
   /** Current value of the input field, cleared after submission. */
   let inputValue = $state('');
+
+  /** Number of lines truncated from the top. */
+  const truncatedCount = $derived(Math.max(0, output.length - MAX_LINES));
+  /** Visible output lines (last MAX_LINES). */
+  const visibleOutput = $derived(output.length > MAX_LINES ? output.slice(-MAX_LINES) : output);
 
   // Auto-scroll to bottom whenever new output lines are appended.
   $effect(() => {
@@ -84,7 +92,13 @@
       <div class="console-empty">Click Run to execute the program</div>
     {/if}
 
-    {#each output as line, i (i)}
+    {#if truncatedCount > 0}
+      <div class="line line-status truncation-notice">
+        {truncatedCount.toLocaleString()} earlier line{truncatedCount !== 1 ? 's' : ''} not shown
+      </div>
+    {/if}
+
+    {#each visibleOutput as line, i (i)}
       {#if line.kind === 'output'}
         <div class="line line-output">{line.text}</div>
       {:else if line.kind === 'input'}
@@ -208,6 +222,13 @@
     color: var(--text-muted);
     font-size: 12px;
     margin-top: var(--space-sm);
+  }
+
+  .truncation-notice {
+    font-style: italic;
+    font-size: 11px;
+    margin-top: 0;
+    margin-bottom: var(--space-xs);
   }
 
   .input-row {

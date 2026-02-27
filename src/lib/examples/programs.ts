@@ -100,6 +100,27 @@ print(factorial(10))
 print(fibonacci(10))
 `
   },
+  // Demonstrates recursive functions with small inputs to showcase the Call Tree visualization
+  {
+    name: 'Recursion',
+    description: 'Recursive call tree visualization',
+    code: `def factorial(n: int) -> int:
+    if n <= 1:
+        return 1
+    else:
+        return n * factorial(n - 1)
+
+def fibonacci(n: int) -> int:
+    if n <= 1:
+        return n
+    else:
+        return fibonacci(n - 1) + fibonacci(n - 2)
+
+# Small inputs so the call tree is easy to follow
+print(factorial(5))
+print(fibonacci(5))
+`
+  },
   // Demonstrates string concatenation, len(), indexing, and for-loop iteration over characters
   {
     name: 'Strings',
