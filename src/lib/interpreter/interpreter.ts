@@ -33,7 +33,7 @@ import {
   objectVal,
   isTruthy,
   isNone,
-  displayValue
+  displayValueTruncated
 } from './values';
 import { Environment } from './environment';
 import { builtinPrint, builtinInput, builtinLen, type IOHandler } from './builtins';
@@ -223,10 +223,7 @@ export async function interpret(
   }): Promise<void> {
     if (!stepMode) return;
     stmtStepCount++;
-    const varSnapshot = new Map<string, string>();
-    for (const [name, val] of env.snapshotVariables(cloneValue)) {
-      varSnapshot.set(name, displayValue(val));
-    }
+    const varSnapshot = env.snapshotDisplayStrings(displayValueTruncated);
     await stepMode.onStep({
       stepNumber: stmtStepCount,
       kind: stmt.kind,

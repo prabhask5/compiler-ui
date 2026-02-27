@@ -164,6 +164,42 @@ export function displayValue(v: Value): string {
 }
 
 /**
+ * Like {@link displayValue} but truncates large collections for UI display.
+ *
+ * Lists with more than 8 elements show the first 5 and last 2 with "..."
+ * in between. Strings longer than 60 characters are truncated with "...".
+ * Recursion depth is limited to 2 levels for nested structures.
+ *
+ * @param v - The runtime value to display.
+ * @param depth - Current nesting depth (defaults to 0).
+ * @returns A truncated human-readable string representation.
+ */
+export function displayValueTruncated(v: Value, depth: number = 0): string {
+  switch (v.kind) {
+    case 'int':
+      return String(v.value);
+    case 'bool':
+      return v.value ? 'True' : 'False';
+    case 'str':
+      return v.value.length > 60 ? v.value.slice(0, 57) + '...' : v.value;
+    case 'none':
+      return 'None';
+    case 'list': {
+      if (depth >= 2) return `[...${v.elements.length} items]`;
+      const els = v.elements;
+      if (els.length <= 8) {
+        return `[${els.map((e) => displayValueTruncated(e, depth + 1)).join(', ')}]`;
+      }
+      const head = els.slice(0, 5).map((e) => displayValueTruncated(e, depth + 1));
+      const tail = els.slice(-2).map((e) => displayValueTruncated(e, depth + 1));
+      return `[${head.join(', ')}, ..., ${tail.join(', ')}]`;
+    }
+    case 'object':
+      return `<${v.className} object>`;
+  }
+}
+
+/**
  * Tests structural equality of two runtime values.
  *
  * Primitive types (`int`, `bool`, `str`, `none`) are compared by value.

@@ -306,4 +306,31 @@ export class Environment {
     }
     return result;
   }
+
+  /**
+   * Produces a snapshot of all visible variables as display strings directly.
+   *
+   * Unlike {@link snapshotVariables}, this avoids deep-cloning intermediate
+   * {@link Value} objects — it calls the provided display function on each
+   * value in-place, which is much faster for step-mode UI updates.
+   *
+   * @param displayFn - A function that converts a {@link Value} to its
+   *   string representation (e.g., `displayValue`).
+   * @returns A flat map from variable name to display string.
+   */
+  snapshotDisplayStrings(displayFn: (v: Value) => string): Map<string, string> {
+    const result = new Map<string, string>();
+    const frames: Frame[] = [];
+    let f: Frame | null = this.currentFrame;
+    while (f) {
+      frames.push(f);
+      f = f.parent;
+    }
+    for (let i = frames.length - 1; i >= 0; i--) {
+      for (const [name, val] of frames[i].locals) {
+        result.set(name, displayFn(val));
+      }
+    }
+    return result;
+  }
 }

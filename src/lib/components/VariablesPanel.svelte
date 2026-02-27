@@ -18,12 +18,13 @@
     currentFunction: string | null;
   } = $props();
 
-  /** Previous variable values for change detection. */
-  let previousValues: Map<string, string> = $state(new Map());
   /** Set of variable names whose values changed on the latest step. */
   let changedNames: Set<string> = $state(new Set());
   /** Set of variable names that are newly added on the latest step. */
   let newNames: Set<string> = $state(new Set());
+
+  /** Previous variable values for change detection (plain variable, not reactive). */
+  let previousValues = new Map<string, string>();
 
   $effect(() => {
     const changed = new Set<string>();
