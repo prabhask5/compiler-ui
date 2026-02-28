@@ -149,17 +149,17 @@
           <!-- Tree guide lines -->
           <div class="guides" style="width: {clampedDepth * INDENT_PX}px">
             {#each { length: clampedDepth } as _, level (level)}
-              {#if level < flat.guideActive.length}
+              {#if level === clampedDepth - 1}
+                <!-- This node's own connector (L-corner or T-tee) -->
                 <span
                   class="guide"
-                  class:guide-active={flat.guideActive[level]}
-                  class:guide-corner={level === clampedDepth - 1 && flat.isLastChild}
-                  class:guide-tee={level === clampedDepth - 1 && !flat.isLastChild}
+                  class:guide-corner={flat.isLastChild}
+                  class:guide-tee={!flat.isLastChild}
                   style="left: {level * INDENT_PX + 6}px"
                 ></span>
-              {:else if level === clampedDepth - 1}
-                <!-- First child of root or first-ever at this depth -->
-                <span class="guide guide-corner" style="left: {level * INDENT_PX + 6}px"></span>
+              {:else if flat.guideActive[level]}
+                <!-- Ancestor with more siblings below — vertical pass-through -->
+                <span class="guide guide-active" style="left: {level * INDENT_PX + 6}px"></span>
               {/if}
             {/each}
           </div>
@@ -299,7 +299,7 @@
     position: absolute;
     top: 50%;
     left: 0;
-    width: 8px;
+    width: 12px;
     height: 1px;
     background: var(--border);
   }
@@ -314,7 +314,7 @@
     position: absolute;
     bottom: 0;
     left: 0;
-    width: 8px;
+    width: 12px;
     height: 1px;
     background: var(--border);
   }
