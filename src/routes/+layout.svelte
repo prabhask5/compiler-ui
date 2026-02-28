@@ -32,7 +32,8 @@
 
 <style>
   .app {
-    height: 100vh;
+    height: 100%;
+    height: 100dvh;
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -40,7 +41,7 @@
 
   .update-banner {
     position: fixed;
-    bottom: var(--space-lg);
+    bottom: calc(var(--space-lg) + env(safe-area-inset-bottom, 0px));
     left: 50%;
     transform: translateX(-50%);
     display: flex;

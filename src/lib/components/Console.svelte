@@ -172,6 +172,7 @@
   .console-output {
     flex: 1;
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
     padding: var(--space-sm) var(--space-md);
     font-family: var(--font-code);
     font-size: 13px;
@@ -256,5 +257,11 @@
 
   .console-input::placeholder {
     color: var(--text-muted);
+  }
+
+  @media (max-width: 767px) {
+    .console-input {
+      font-size: 16px;
+    }
   }
 </style>

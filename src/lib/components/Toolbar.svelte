@@ -203,8 +203,9 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    height: var(--header-height);
-    padding: 0 var(--space-lg);
+    height: calc(var(--header-height) + env(safe-area-inset-top, 0px));
+    padding: env(safe-area-inset-top, 0px) max(var(--space-lg), env(safe-area-inset-right, 0px)) 0
+      max(var(--space-lg), env(safe-area-inset-left, 0px));
     border-bottom: 1px solid var(--border);
     flex-shrink: 0;
     z-index: 100;

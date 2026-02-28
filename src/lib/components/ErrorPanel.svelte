@@ -106,6 +106,7 @@
 
   .error-list {
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
     flex: 1;
   }
 

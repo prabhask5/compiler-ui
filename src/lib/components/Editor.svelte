@@ -311,5 +311,6 @@
 
   .editor-container :global(.cm-scroller) {
     overflow: auto;
+    -webkit-overflow-scrolling: touch;
   }
 </style>

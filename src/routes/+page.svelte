@@ -812,6 +812,8 @@
 
   .mobile .output-panel {
     border-left: none;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
 
   .skeleton-editor {
@@ -840,8 +842,11 @@
   .mobile-tabs {
     display: flex;
     border-top: 1px solid var(--border);
-    padding: var(--space-xs) var(--space-sm);
-    padding-bottom: env(safe-area-inset-bottom, var(--space-xs));
+    padding: var(--space-xs) max(var(--space-sm), env(safe-area-inset-right, 0px)) 0
+      max(var(--space-sm), env(safe-area-inset-left, 0px));
+    /* Ensure tab bar clears the home indicator / Safari bottom bar */
+    padding-bottom: calc(var(--space-xs) + env(safe-area-inset-bottom, 0px));
+    flex-shrink: 0;
   }
 
   .mobile-tab {
