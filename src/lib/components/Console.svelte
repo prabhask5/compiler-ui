@@ -41,6 +41,52 @@
   /** Current value of the input field, cleared after submission. */
   let inputValue = $state('');
 
+  /** Whether auto-follow scrolling is active. Paused when user manually scrolls up. */
+  let autoFollow = $state(true);
+
+  /** Pause auto-follow on direct user input. No-op when idle. */
+  function pauseFollow() {
+    if (!isRunning) return;
+    autoFollow = false;
+    // Stop any in-progress smooth scroll dead in its tracks
+    if (scrollEl) {
+      scrollEl.scrollTop = scrollEl.scrollTop;
+    }
+  }
+
+  // Attach touchstart + pointerdown via $effect to avoid a11y warnings on static elements.
+  $effect(() => {
+    const el = scrollEl;
+    if (!el) return;
+    const onTouch = () => pauseFollow();
+    const onPointer = (e: PointerEvent) => {
+      const rect = el.getBoundingClientRect();
+      if (e.clientX > rect.left + el.clientWidth || e.clientY > rect.top + el.clientHeight) {
+        pauseFollow();
+      }
+    };
+    el.addEventListener('touchstart', onTouch, { passive: true });
+    el.addEventListener('pointerdown', onPointer);
+    return () => {
+      el.removeEventListener('touchstart', onTouch);
+      el.removeEventListener('pointerdown', onPointer);
+    };
+  });
+
+  function resumeFollow() {
+    autoFollow = true;
+    if (scrollEl) {
+      scrollEl.scrollTo({ top: scrollEl.scrollHeight, behavior: 'smooth' });
+    }
+  }
+
+  // Reset autoFollow when execution stops
+  $effect(() => {
+    if (!isRunning) {
+      autoFollow = true;
+    }
+  });
+
   /** Number of lines truncated from the top. */
   const truncatedCount = $derived(Math.max(0, output.length - MAX_LINES));
   /** Visible output lines (last MAX_LINES). */
@@ -48,9 +94,10 @@
 
   // Auto-scroll to bottom whenever new output lines are appended.
   $effect(() => {
-    if (output.length > 0) {
+    if (output.length > 0 && autoFollow) {
       tick().then(() => {
-        if (scrollEl) {
+        // Re-check autoFollow after tick — user may have scrolled in the interim
+        if (autoFollow && scrollEl) {
           scrollEl.scrollTop = scrollEl.scrollHeight;
         }
       });
@@ -87,7 +134,7 @@
     {/if}
   </div>
 
-  <div class="console-output" bind:this={scrollEl}>
+  <div class="console-output" bind:this={scrollEl} onwheel={pauseFollow}>
     {#if output.length === 0 && !isRunning}
       <div class="console-empty">Click Run to execute the program</div>
     {/if}
@@ -130,6 +177,20 @@
           placeholder="Type input and press Enter…"
         />
       </div>
+    {/if}
+    {#if !autoFollow && isRunning}
+      <button class="follow-btn" onclick={resumeFollow}>
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+          <path
+            d="M6 2v8M6 10l3-3M6 10L3 7"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        </svg>
+        Follow
+      </button>
     {/if}
   </div>
 </div>
@@ -257,6 +318,32 @@
 
   .console-input::placeholder {
     color: var(--text-muted);
+  }
+
+  .follow-btn {
+    position: sticky;
+    bottom: var(--space-sm);
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 12px;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    box-shadow: var(--shadow-md);
+    z-index: 10;
+    cursor: pointer;
+    /* no animation — button must appear instantly */
+  }
+
+  .follow-btn:hover {
+    color: var(--text);
+    background: var(--bg-hover);
   }
 
   @media (max-width: 767px) {

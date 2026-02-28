@@ -30,6 +30,66 @@
   /** Whether all tree nodes should currently be expanded. */
   let expandAll = $state(true);
 
+  /** Whether auto-follow scrolling is active. Paused when user manually scrolls. */
+  let autoFollow = $state(true);
+  /** Ref to the scrollable container, used to cancel in-progress smooth scrolls. */
+  let treeContentEl: HTMLDivElement | undefined = $state(undefined);
+
+  /** Pause auto-follow and cancel any in-progress smooth scroll. No-op when idle. */
+  function pauseFollow() {
+    // Only pause when there's active content to follow — prevents permanently
+    // locking autoFollow=false when user scrolls during idle state.
+    if (highlightLoc === null && !typePropagationActive) return;
+    autoFollow = false;
+    // Stop any in-progress smooth scroll dead in its tracks
+    if (treeContentEl) {
+      treeContentEl.scrollTop = treeContentEl.scrollTop;
+    }
+  }
+
+  // Attach touchstart + pointerdown via $effect to avoid a11y warnings on static elements.
+  // touchstart detects touch scrolling; pointerdown detects scrollbar thumb dragging.
+  $effect(() => {
+    const el = treeContentEl;
+    if (!el) return;
+    const onTouch = () => pauseFollow();
+    const onPointer = (e: PointerEvent) => {
+      const rect = el.getBoundingClientRect();
+      if (e.clientX > rect.left + el.clientWidth || e.clientY > rect.top + el.clientHeight) {
+        pauseFollow();
+      }
+    };
+    el.addEventListener('touchstart', onTouch, { passive: true });
+    el.addEventListener('pointerdown', onPointer);
+    return () => {
+      el.removeEventListener('touchstart', onTouch);
+      el.removeEventListener('pointerdown', onPointer);
+    };
+  });
+
+  /** Resume auto-follow and immediately scroll to the current highlighted node. */
+  function resumeFollow() {
+    autoFollow = true;
+    if (treeContentEl) {
+      const el = treeContentEl.querySelector(
+        '.node-header.highlighted, .node-header.exec-highlighted, .node-header.type-highlighted'
+      );
+      if (el) {
+        const containerRect = treeContentEl.getBoundingClientRect();
+        const elRect = el.getBoundingClientRect();
+        const scrollTop = treeContentEl.scrollTop + elRect.top - containerRect.top - 40;
+        treeContentEl.scrollTo({ top: Math.max(0, scrollTop), behavior: 'smooth' });
+      }
+    }
+  }
+
+  // Reset autoFollow when stepping stops or type propagation ends
+  $effect(() => {
+    if (highlightLoc === null && !typePropagationActive) {
+      autoFollow = true;
+    }
+  });
+
   /** Whether the type propagation animation is currently running. */
   let isAnimatingTypes = $state(false);
   /** Whether type badges should respect the reveal set (true = hide unrevealed badges). */
@@ -123,7 +183,7 @@
       Visualize Type Propagation
     </button>
   </div>
-  <div class="tree-content">
+  <div class="tree-content" bind:this={treeContentEl} onwheel={pauseFollow}>
     <ASTNode
       node={ast}
       key="Program"
@@ -132,9 +192,24 @@
       forceExpand={expandAll}
       {highlightLoc}
       {isExecuting}
+      {autoFollow}
       {typePropagationActive}
       {revealedTypes}
     />
+    {#if !autoFollow && (highlightLoc !== null || typePropagationActive)}
+      <button class="follow-btn" onclick={resumeFollow}>
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+          <path
+            d="M6 2v8M6 10l3-3M6 10L3 7"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        </svg>
+        Follow
+      </button>
+    {/if}
   </div>
 </div>
 
@@ -177,6 +252,32 @@
     flex: 1;
     overflow: auto;
     padding: var(--space-sm);
+  }
+
+  .follow-btn {
+    position: sticky;
+    bottom: var(--space-sm);
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 12px;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    box-shadow: var(--shadow-md);
+    z-index: 10;
+    cursor: pointer;
+    /* no animation — button must appear instantly */
+  }
+
+  .follow-btn:hover {
+    color: var(--text);
+    background: var(--bg-hover);
   }
 
   @media (max-width: 767px) {

@@ -25,6 +25,7 @@
     forceExpand,
     highlightLoc,
     isExecuting = false,
+    autoFollow = true,
     typePropagationActive = false,
     revealedTypes = new Set<string>()
   }: {
@@ -42,6 +43,8 @@
     highlightLoc: [number, number, number, number] | null;
     /** Whether step-through execution is active (uses green highlight instead of blue). */
     isExecuting?: boolean;
+    /** Whether auto-follow scrolling is active (false = user scrolled manually). */
+    autoFollow?: boolean;
     /** Whether type propagation animation is active (badges hidden until revealed). */
     typePropagationActive?: boolean;
     /** Set of location keys whose type badges have been revealed. */
@@ -111,7 +114,7 @@
 
   // Scroll highlighted node into view with bottom padding
   $effect(() => {
-    if (isHighlighted && nodeEl) {
+    if (isHighlighted && autoFollow && nodeEl) {
       const container = nodeEl.closest('.tree-content');
       if (container) {
         const containerRect = container.getBoundingClientRect();
@@ -128,7 +131,7 @@
 
   // Auto-scroll to center the node when its type is revealed during propagation animation
   $effect(() => {
-    if (typeJustRevealed && nodeEl) {
+    if (typeJustRevealed && autoFollow && nodeEl) {
       const container = nodeEl.closest('.tree-content');
       if (container) {
         const containerRect = container.getBoundingClientRect();
@@ -226,6 +229,7 @@
                     {forceExpand}
                     {highlightLoc}
                     {isExecuting}
+                    {autoFollow}
                     {typePropagationActive}
                     {revealedTypes}
                   />
@@ -249,6 +253,7 @@
                 {forceExpand}
                 {highlightLoc}
                 {isExecuting}
+                {autoFollow}
                 {typePropagationActive}
                 {revealedTypes}
               />

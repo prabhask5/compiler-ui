@@ -66,6 +66,65 @@
   /** The CodeMirror EditorView instance; undefined until onMount fires. */
   let view: EditorView | undefined;
 
+  /** Whether auto-follow scrolling is active during step-through. */
+  let autoFollow = $state(true);
+
+  /** Pause auto-follow on direct user input (wheel/touch/scrollbar drag). */
+  function pauseFollow() {
+    if (executionLoc !== null) {
+      autoFollow = false;
+      // Stop any in-progress smooth scroll dead in its tracks
+      const scroller = containerEl?.querySelector('.cm-scroller');
+      if (scroller) {
+        scroller.scrollTop = scroller.scrollTop;
+      }
+    }
+  }
+
+  /** Pause auto-follow when the user clicks the scrollbar gutter. */
+  function handleScrollbarPointerDown(e: Event) {
+    const pe = e as PointerEvent;
+    const scroller = containerEl?.querySelector('.cm-scroller');
+    if (!scroller) return;
+    const rect = scroller.getBoundingClientRect();
+    const inVScrollbar = pe.clientX > rect.left + scroller.clientWidth;
+    const inHScrollbar = pe.clientY > rect.top + scroller.clientHeight;
+    if (inVScrollbar || inHScrollbar) {
+      pauseFollow();
+    }
+  }
+
+  function resumeFollow() {
+    autoFollow = true;
+    // Re-dispatch the current execution cursor with scrollIntoView
+    if (view && executionLoc) {
+      const doc = view.state.doc;
+      let from = locToPos(doc, executionLoc[0], executionLoc[1]);
+      let to = locToPosEnd(doc, executionLoc[2], executionLoc[3]);
+      if (from >= to) {
+        const row = executionLoc[0];
+        if (row >= 1 && row <= doc.lines) {
+          const line = doc.line(row);
+          from = line.from;
+          to = line.to;
+        }
+      }
+      if (from < to) {
+        view.dispatch({
+          effects: setExecCursor.of({ from, to }),
+          scrollIntoView: true
+        });
+      }
+    }
+  }
+
+  // Reset autoFollow when stepping stops
+  $effect(() => {
+    if (executionLoc === null) {
+      autoFollow = true;
+    }
+  });
+
   // --- StateEffects used to push decoration updates into the CodeMirror state ---
 
   /** Effect to set or clear the highlight decoration range. */
@@ -205,9 +264,23 @@
       state,
       parent: containerEl
     });
+
+    // Attach user-input listeners to CodeMirror's internal scroller
+    const scroller = containerEl.querySelector('.cm-scroller');
+    if (scroller) {
+      scroller.addEventListener('wheel', pauseFollow);
+      scroller.addEventListener('touchstart', pauseFollow);
+      scroller.addEventListener('pointerdown', handleScrollbarPointerDown);
+    }
   });
 
   onDestroy(() => {
+    const scroller = containerEl?.querySelector('.cm-scroller');
+    if (scroller) {
+      scroller.removeEventListener('wheel', pauseFollow);
+      scroller.removeEventListener('touchstart', pauseFollow);
+      scroller.removeEventListener('pointerdown', handleScrollbarPointerDown);
+    }
     view?.destroy();
   });
 
@@ -286,7 +359,7 @@
       if (from < to) {
         view.dispatch({
           effects: setExecCursor.of({ from, to }),
-          scrollIntoView: true
+          scrollIntoView: autoFollow
         });
       } else {
         view.dispatch({ effects: setExecCursor.of(null) });
@@ -297,12 +370,33 @@
   });
 </script>
 
-<div class="editor-container" bind:this={containerEl}></div>
+<div class="editor-wrapper">
+  <div class="editor-container" bind:this={containerEl}></div>
+  {#if !autoFollow && executionLoc !== null}
+    <button class="follow-btn" onclick={resumeFollow}>
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+        <path
+          d="M6 2v8M6 10l3-3M6 10L3 7"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        />
+      </svg>
+      Follow
+    </button>
+  {/if}
+</div>
 
 <style>
-  .editor-container {
+  .editor-wrapper {
     flex: 1;
     overflow: hidden;
+    position: relative;
+  }
+
+  .editor-container {
+    height: 100%;
   }
 
   .editor-container :global(.cm-editor) {
@@ -312,5 +406,31 @@
   .editor-container :global(.cm-scroller) {
     overflow: auto;
     -webkit-overflow-scrolling: touch;
+  }
+
+  .follow-btn {
+    position: absolute;
+    bottom: var(--space-sm);
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 12px;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    box-shadow: var(--shadow-md);
+    z-index: 10;
+    cursor: pointer;
+    /* no animation — button must appear instantly */
+  }
+
+  .follow-btn:hover {
+    color: var(--text);
+    background: var(--bg-hover);
   }
 </style>

@@ -76,22 +76,69 @@
   /** Ref for the scrollable content container. */
   let contentEl: HTMLDivElement | undefined = $state(undefined);
 
+  /** Whether auto-follow scrolling is active. Paused when user manually scrolls. */
+  let autoFollow = $state(true);
+
+  /** Pause auto-follow on direct user input. No-op when idle. */
+  function pauseFollow() {
+    if (highlightedSourceLine === null) return;
+    autoFollow = false;
+    // Stop any in-progress smooth scroll dead in its tracks
+    if (contentEl) {
+      contentEl.scrollTop = contentEl.scrollTop;
+    }
+  }
+
+  // Attach touchstart + pointerdown via $effect to avoid a11y warnings on static elements.
+  $effect(() => {
+    const el = contentEl;
+    if (!el) return;
+    const onTouch = () => pauseFollow();
+    const onPointer = (e: PointerEvent) => {
+      const rect = el.getBoundingClientRect();
+      if (e.clientX > rect.left + el.clientWidth || e.clientY > rect.top + el.clientHeight) {
+        pauseFollow();
+      }
+    };
+    el.addEventListener('touchstart', onTouch, { passive: true });
+    el.addEventListener('pointerdown', onPointer);
+    return () => {
+      el.removeEventListener('touchstart', onTouch);
+      el.removeEventListener('pointerdown', onPointer);
+    };
+  });
+
+  /** Resume auto-follow and immediately scroll to the active instruction. */
+  function resumeFollow() {
+    autoFollow = true;
+    scrollToHighlighted();
+  }
+
+  function scrollToHighlighted() {
+    if (!contentEl) return;
+    requestAnimationFrame(() => {
+      const cls = isExecuting ? '.exec-highlighted' : '.highlighted';
+      const el = contentEl?.querySelector(cls);
+      if (el && contentEl) {
+        const containerRect = contentEl.getBoundingClientRect();
+        const elRect = el.getBoundingClientRect();
+        const scrollTop = contentEl.scrollTop + elRect.top - containerRect.top - 40;
+        contentEl.scrollTo({ top: Math.max(0, scrollTop), behavior: 'smooth' });
+      }
+    });
+  }
+
+  // Reset autoFollow when stepping stops (highlightedSourceLine clears)
+  $effect(() => {
+    if (highlightedSourceLine === null) {
+      autoFollow = true;
+    }
+  });
+
   // Scroll the first highlighted instruction into view during stepping
   $effect(() => {
-    if (highlightedSourceLine !== null && contentEl) {
-      // Wait a tick for the DOM to update with highlight classes
-      requestAnimationFrame(() => {
-        const cls = isExecuting ? '.exec-highlighted' : '.highlighted';
-        const el = contentEl?.querySelector(cls);
-        if (el && contentEl) {
-          const containerRect = contentEl.getBoundingClientRect();
-          const elRect = el.getBoundingClientRect();
-          if (elRect.top < containerRect.top || elRect.bottom > containerRect.bottom - 60) {
-            const scrollTop = contentEl.scrollTop + elRect.top - containerRect.top - 40;
-            contentEl.scrollTo({ top: Math.max(0, scrollTop), behavior: 'smooth' });
-          }
-        }
-      });
+    if (highlightedSourceLine !== null && autoFollow && contentEl) {
+      scrollToHighlighted();
     }
   });
 </script>
@@ -103,7 +150,7 @@
       >{userFunctions.length} function{userFunctions.length !== 1 ? 's' : ''}</span
     >
   </div>
-  <div class="asm-content" bind:this={contentEl}>
+  <div class="asm-content" bind:this={contentEl} onwheel={pauseFollow}>
     {#each userFunctions as func (func.name)}
       <div class="asm-function">
         <div class="func-header">; ===== {func.name} =====</div>
@@ -135,6 +182,20 @@
         {/each}
       </div>
     {/each}
+    {#if !autoFollow && highlightedSourceLine !== null}
+      <button class="follow-btn" onclick={resumeFollow}>
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+          <path
+            d="M6 2v8M6 10l3-3M6 10L3 7"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        </svg>
+        Follow
+      </button>
+    {/if}
   </div>
 </div>
 
@@ -271,6 +332,32 @@
 
   .asm-text :global(.asm-bracket) {
     color: var(--text-muted);
+  }
+
+  .follow-btn {
+    position: sticky;
+    bottom: var(--space-sm);
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 12px;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    box-shadow: var(--shadow-md);
+    z-index: 10;
+    cursor: pointer;
+    /* no animation — button must appear instantly */
+  }
+
+  .follow-btn:hover {
+    color: var(--text);
+    background: var(--bg-hover);
   }
 
   @media (max-width: 767px) {
