@@ -19,7 +19,7 @@ For compiler internals (lexer, parser, type checker, code generator), see [typed
 - **TypeScript Tree-Walking Interpreter** — Run programs in-browser with runtime error detection and source location tracking
 - **URL Sharing** — Share programs via LZ-string compressed URL hash; recipients see code, compilation result, and output automatically
 - **Responsive Split-Panel Layout** — Desktop side-by-side panels with draggable divider; mobile stacked layout with tab switching
-- **12 Curated Examples** — Demonstrating classes, inheritance, closures, lists, and more
+- **13 Curated Examples** — Demonstrating recursion, classes, inheritance, closures, lists, and more
 
 ## How It Works
 
