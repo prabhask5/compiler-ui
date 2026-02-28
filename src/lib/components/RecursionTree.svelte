@@ -2,9 +2,10 @@
   /**
    * Animated recursion tree visualization for step-through and normal execution.
    *
-   * Renders function call/return events as a nested tree. During stepping,
-   * nodes appear incrementally with animations. Active calls pulse green;
-   * return values animate in with a scale transition.
+   * Renders function call/return events as a flat list with tree-line indent
+   * guides (like VS Code's file explorer). During stepping, nodes appear
+   * incrementally with animations. Active calls pulse green; return values
+   * animate in with a scale transition.
    *
    * Graceful handling for large trees:
    * - Node count capped at MAX_VISIBLE_NODES with a truncation notice
@@ -21,6 +22,8 @@
   const MAX_INDENT_DEPTH = 12;
   /** Disable per-node animations above this count for performance. */
   const ANIMATE_THRESHOLD = 80;
+  /** Width of each indent level in pixels. */
+  const INDENT_PX = 18;
 
   let {
     nodes,
@@ -57,34 +60,59 @@
     return c;
   }
 
-  /** A flattened node with depth info for rendering. */
+  /** A flattened node with depth and tree-line metadata for rendering. */
   interface FlatNode {
     node: RecursionNode;
     depth: number;
     hasChildren: boolean;
     isCollapsed: boolean;
     hiddenCount: number;
+    /** Whether this node is the last sibling at its depth. */
+    isLastChild: boolean;
+    /**
+     * For each depth level 0..depth-1, true if there are more siblings
+     * below at that level (i.e. draw a continuing vertical line).
+     */
+    guideActive: boolean[];
   }
 
-  /** Flatten tree into a depth-first list, respecting collapsed state and node cap. */
+  /** Flatten tree into a depth-first list with tree-line metadata. */
   const flatNodes: FlatNode[] = $derived.by(() => {
     const result: FlatNode[] = [];
-    function walk(node: RecursionNode, depth: number) {
+    // Track which depths have continuing siblings (ancestors that aren't last children).
+    const activeGuides: boolean[] = [];
+
+    function walk(node: RecursionNode, depth: number, isLast: boolean) {
       if (result.length >= MAX_VISIBLE_NODES) return;
       const hasChildren = node.children.length > 0;
       const isCollapsed = collapsed.has(node.callId);
       const hiddenCount = isCollapsed && hasChildren ? countNodes(node) - 1 : 0;
-      result.push({ node, depth, hasChildren, isCollapsed, hiddenCount });
+
+      result.push({
+        node,
+        depth,
+        hasChildren,
+        isCollapsed,
+        hiddenCount,
+        isLastChild: isLast,
+        guideActive: activeGuides.slice(0, depth)
+      });
+
       if (hasChildren && !isCollapsed) {
-        for (const child of node.children) {
+        const children = node.children;
+        for (let i = 0; i < children.length; i++) {
           if (result.length >= MAX_VISIBLE_NODES) return;
-          walk(child, depth + 1);
+          const childIsLast = i === children.length - 1;
+          // Before recursing, mark whether this depth has more siblings after
+          activeGuides[depth] = !childIsLast;
+          walk(children[i], depth + 1, childIsLast);
         }
       }
     }
-    for (const root of nodes) {
+
+    for (let i = 0; i < nodes.length; i++) {
       if (result.length >= MAX_VISIBLE_NODES) break;
-      walk(root, 0);
+      walk(nodes[i], 0, i === nodes.length - 1);
     }
     return result;
   });
@@ -114,21 +142,34 @@
     {#if flatNodes.length === 0}
       <div class="tree-empty">No function calls</div>
     {:else}
-      {#each flatNodes as { node, depth, hasChildren, isCollapsed, hiddenCount } (node.callId)}
-        {@const clampedDepth = Math.min(depth, MAX_INDENT_DEPTH)}
-        {@const isActive = node.active && node.callId === activeCallId}
-        <div
-          class="call-row"
-          class:skip-anim={skipAnimations}
-          class:has-children={hasChildren}
-          style="padding-left: {clampedDepth * 16 + 4}px"
-        >
-          {#if hasChildren}
+      {#each flatNodes as flat (flat.node.callId)}
+        {@const clampedDepth = Math.min(flat.depth, MAX_INDENT_DEPTH)}
+        {@const isActive = flat.node.active && flat.node.callId === activeCallId}
+        <div class="call-row" class:skip-anim={skipAnimations} style="--indent: {clampedDepth}">
+          <!-- Tree guide lines -->
+          <div class="guides" style="width: {clampedDepth * INDENT_PX}px">
+            {#each { length: clampedDepth } as _, level (level)}
+              {#if level < flat.guideActive.length}
+                <span
+                  class="guide"
+                  class:guide-active={flat.guideActive[level]}
+                  class:guide-corner={level === clampedDepth - 1 && flat.isLastChild}
+                  class:guide-tee={level === clampedDepth - 1 && !flat.isLastChild}
+                  style="left: {level * INDENT_PX + 6}px"
+                ></span>
+              {:else if level === clampedDepth - 1}
+                <!-- First child of root or first-ever at this depth -->
+                <span class="guide guide-corner" style="left: {level * INDENT_PX + 6}px"></span>
+              {/if}
+            {/each}
+          </div>
+
+          {#if flat.hasChildren}
             <button
               class="collapse-toggle"
-              onclick={() => toggleCollapse(node.callId)}
-              aria-label={isCollapsed ? 'Expand' : 'Collapse'}
-              >{isCollapsed ? '\u25B6' : '\u25BC'}</button
+              onclick={() => toggleCollapse(flat.node.callId)}
+              aria-label={flat.isCollapsed ? 'Expand' : 'Collapse'}
+              >{flat.isCollapsed ? '\u25B6' : '\u25BC'}</button
             >
           {:else}
             <span class="collapse-spacer"></span>
@@ -136,18 +177,22 @@
           <span
             class="call-header"
             class:active={isActive}
-            class:returned={node.returnValue !== null && !node.active}
+            class:returned={flat.node.returnValue !== null && !flat.node.active}
           >
-            <span class="call-name">{node.functionName}</span>
+            <span class="call-name">{flat.node.functionName}</span>
             <span class="call-args"
-              >({node.args.map((a) => `${a.name}=${a.value}`).join(', ')})</span
+              >({flat.node.args.map((a) => `${a.name}=${a.value}`).join(', ')})</span
             >
-            {#if node.returnValue !== null}
+            {#if flat.node.returnValue !== null}
               <span class="call-arrow">&rarr;</span>
-              <span class="call-return" class:skip-anim={skipAnimations}>{node.returnValue}</span>
+              <span class="call-return" class:skip-anim={skipAnimations}
+                >{flat.node.returnValue}</span
+              >
             {/if}
-            {#if isCollapsed && hiddenCount > 0}
-              <span class="collapsed-count">{hiddenCount} call{hiddenCount !== 1 ? 's' : ''}</span>
+            {#if flat.isCollapsed && flat.hiddenCount > 0}
+              <span class="collapsed-count"
+                >{flat.hiddenCount} call{flat.hiddenCount !== 1 ? 's' : ''}</span
+              >
             {/if}
           </span>
         </div>
@@ -208,12 +253,13 @@
     font-style: italic;
   }
 
+  /* --- Row layout --- */
+
   .call-row {
     display: flex;
     align-items: center;
     gap: 2px;
-    padding-top: 1px;
-    padding-bottom: 1px;
+    height: 20px;
     white-space: nowrap;
     animation: fadeIn var(--duration) var(--ease) both;
   }
@@ -221,6 +267,91 @@
   .call-row.skip-anim {
     animation: none;
   }
+
+  /* --- Tree guide lines --- */
+
+  .guides {
+    position: relative;
+    flex-shrink: 0;
+    height: 100%;
+  }
+
+  .guide {
+    position: absolute;
+    top: 0;
+    width: 1px;
+    height: 100%;
+    background: var(--border);
+  }
+
+  /* Vertical line continues downward (more siblings below at this depth). */
+  .guide.guide-active {
+    height: 100%;
+  }
+
+  /* T-connector: vertical line continues + horizontal branch to this node. */
+  .guide.guide-tee {
+    height: 100%;
+  }
+
+  .guide.guide-tee::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 0;
+    width: 8px;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* L-connector (last child): vertical line stops at midpoint + horizontal branch. */
+  .guide.guide-corner {
+    height: 50%;
+  }
+
+  .guide.guide-corner::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 8px;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* Animate guide lines growing during step-through */
+  @media (prefers-reduced-motion: no-preference) {
+    .call-row:not(.skip-anim) .guide {
+      animation: guideGrow var(--duration) var(--ease) both;
+      transform-origin: top;
+    }
+
+    .call-row:not(.skip-anim) .guide::after {
+      animation: guideBranch var(--duration) var(--ease) both;
+      animation-delay: 80ms;
+      transform-origin: left;
+    }
+  }
+
+  @keyframes guideGrow {
+    from {
+      transform: scaleY(0);
+    }
+    to {
+      transform: scaleY(1);
+    }
+  }
+
+  @keyframes guideBranch {
+    from {
+      transform: scaleX(0);
+    }
+    to {
+      transform: scaleX(1);
+    }
+  }
+
+  /* --- Controls --- */
 
   .collapse-toggle {
     width: 14px;
@@ -246,6 +377,8 @@
     width: 14px;
     flex-shrink: 0;
   }
+
+  /* --- Node content --- */
 
   .call-header {
     display: inline-flex;
