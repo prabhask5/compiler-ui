@@ -1,0 +1,10 @@
+node_modules
+build
+.svelte-kit
+.git
+.husky
+.env
+.env.*
+wasm/target
+typed-python-compiler
+*.md
